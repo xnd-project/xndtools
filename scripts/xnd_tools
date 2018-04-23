@@ -1,0 +1,90 @@
+#!/usr/bin/env python
+'''
+XND-tools provides tools to semi-automatically generate gumath kernels
+and the corresponding extension modules (of the selected languages)
+using C header files as input. The process is divided into four parts,
+only the second one requires user input:
+
+1. Read C function prototypes from C header files and generate a
+kernel configuration file.
+
+2. User edits the configuration file to add relational information of
+C function arguments.
+
+3. Generate gumath kernels using the kernel configuration file [OPTIONAL].
+
+4. Generate extension module using the kernel configuration file.
+'''
+# Author: Pearu Peterson
+# Created: April 2018
+
+import xndtools.kernel_generator
+
+def show_description(args):
+    print(__doc__)
+    print('For detailed usage, run:\n\n  {} -h\n'.format(__file__))
+    
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description = __doc__,
+                                     prog = 'xnd_tools')
+    parser.add_argument('--version', action='version', version='%(prog)s 1.0')
+    parser.set_defaults(func=show_description)
+    subparsers = parser.add_subparsers(#help='sub-command help',
+                                       title='Subcommands:',
+                                       description = 'Select one of the following commands:')
+    parser_config = subparsers.add_parser('config', description = 'Generate initial kernel configuration file.',
+                                          help='Generate kernel configuration file from header file(s)')
+    parser_kernel = subparsers.add_parser('kernel', description = 'Generate gumath kernels C source file.',
+                                          help='Generate gumath kernels file from a kernel configuration file')
+    parser_module = subparsers.add_parser('module', description = 'Generate extension module of gumath functions.',
+                                          help='Generate extension module file from a kernel configuration file')
+
+    #config
+    parser_config.add_argument('-m', '--module',
+                               default = None,
+                               help='Specify module name. Default name is derived from the (first) header file name.')
+    parser_config.add_argument('-c', '--config-file',
+                               default = None,
+                               help='Specify path to the configuration file to be created.')
+    parser_config.add_argument('header_files', metavar='header-file', nargs='+',
+                               help='Path to header file')
+    parser_config.add_argument('-x', '--exclude', default=None,
+                                help='Specify regex pattern to exclude C function names.')
+    parser_config.set_defaults(func=xndtools.kernel_generator.generate_config)
+
+    # kernel
+    parser_kernel.add_argument('config_file', metavar='config-file',
+                               help = 'Path to kernel configuration file.')
+    parser_kernel.add_argument('--source-dir', default = '',
+                               help='Specify path to source directory (where C source files are saved). Default is CWD.')
+    parser_kernel.add_argument('-t', '--target-file',
+                               default = None,
+                               help='Specify path to the kernels C source file to be created. Default is <source-dir>/<module>_kernels.c')
+    parser_kernel.set_defaults(func=xndtools.kernel_generator.generate_kernel)
+
+    # module
+    parser_module.add_argument('config_file', metavar='config-file',
+                               help = 'Path to kernel configuration file.')
+    parser_module.add_argument('--source-dir', default = '',
+                               help='Specify path to source directory (where C source files are saved). Default is CWD.')
+    parser_module.add_argument('-k', '--kernels-source-file',
+                               default = None,
+                               help='Specify path to the kernels C source file to be created. Default is <source-dir>/<module>_kernels.c')
+    parser_module.add_argument('-l', '--target-language', choices = ['python'], default = 'python',
+                               help='Specify target language for extension module')
+    parser_module.add_argument('-p', '--package', default=None,
+                               help='Specify package name of the extension module')
+    parser_module.add_argument('-t', '--target-file',
+                               default = None,
+                               help='Specify path to the extension module C source file to be created. Default is <source-dir>/<modulename>-<language>.c')
+    parser_module.set_defaults(func=xndtools.kernel_generator.generate_module)
+
+    #
+    args = parser.parse_args()
+    args.func(args)
+
+    
+    
+if __name__ == '__main__':
+    main()
