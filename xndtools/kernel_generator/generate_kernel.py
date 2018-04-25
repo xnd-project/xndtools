@@ -39,12 +39,12 @@ static const gm_kernel_init_t {modulename}_kernels[] = {{
 /****************************************************************************/
 
 int
-gmk_init_{modulename}_kernels(ndt_context_t *ctx)
+gmk_init_{modulename}_kernels(gm_tbl_t *tbl, ndt_context_t *ctx)
 {{
     const gm_kernel_init_t *k;
 
     for (k = {modulename}_kernels; k->name != NULL; k++) {{
-        if (gm_add_kernel(k, ctx) < 0) {{
+        if (gm_add_kernel(tbl, k, ctx) < 0) {{
             return -1;
         }}
     }}

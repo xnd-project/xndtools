@@ -37,36 +37,16 @@ pymodule_template = '''
 #include <Python.h>
 #include "ndtypes.h"
 #include "pyndtypes.h"
-#include "xnd.h"
-#include "pyxnd.h"
 #include "gumath.h"
+#include "pygumath.h"
 
 
-/* libxnd.so is not linked without at least one xnd symbol. The -no-as-needed
- * linker option is difficult to integrate into setup.py. */
-const void *dummy = &xnd_error;
+/****************************************************************************/
+/*                              Module globals                              */
+/****************************************************************************/
 
-/* Temporarily including gumath Python support functions, ought to use include "pygumath.h" approach */
-#include "pygumath.c"
-
-static PyGetSetDef gufunc_getsets [] =
-{{
-  {{ "kernels", (getter)gufunc_kernels, NULL, NULL, NULL}},
-  {{NULL}}
-}};
-
-
-static PyTypeObject Gufunc_Type = {{
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "{extmodulename}.gufunc",
-    .tp_basicsize = sizeof(GufuncObject),
-    .tp_dealloc = (destructor)gufunc_dealloc,
-    .tp_hash = PyObject_HashNotImplemented,
-    .tp_call = (ternaryfunc)gufunc_call,
-    .tp_getattro = PyObject_GenericGetAttr,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_getset = gufunc_getsets
-}};
+/* Function table */
+static gm_tbl_t *gmk_{modulename}_table = NULL;
 
 /****************************************************************************/
 /*                                  Module                                  */
@@ -84,21 +64,7 @@ static struct PyModuleDef {modulename}_module = {{
     NULL                          /* m_free */
 }};
 
-static int
-add_function(const gm_func_t *f, void *state)
-{{
-    PyObject *m = (PyObject *)state;
-    PyObject *func;
-
-    func = gufunc_new(f->name);
-    if (func == NULL) {{
-        return -1;
-    }}
-
-    return PyModule_AddObject(m, f->name, func);
-}}
-
-int gmk_init_{modulename}_kernels(ndt_context_t *ctx);
+int gmk_init_{modulename}_kernels(gm_tbl_t *tbl, ndt_context_t *ctx);
 
 PyMODINIT_FUNC
 PyInit_{modulename}(void)
@@ -111,20 +77,20 @@ PyInit_{modulename}(void)
        if (import_ndtypes() < 0) {{
             return NULL;
        }}
-       if (import_xnd() < 0) {{
+       if (import_gumath() < 0) {{
             return NULL;
        }}
-       if (gm_init(&ctx) < 0) {{
-           return seterr(&ctx);
-       }}
-       if (gmk_init_{modulename}_kernels(&ctx) < 0) {{
-           return seterr(&ctx);
-       }}
-       initialized = 1;
-    }}
 
-    if (PyType_Ready(&Gufunc_Type) < 0) {{
-        return NULL;
+       gmk_{modulename}_table = gm_tbl_new(&ctx);
+       if (gmk_{modulename}_table == NULL) {{
+           return Ndt_SetError(&ctx);
+       }}
+
+       if (gmk_init_{modulename}_kernels(gmk_{modulename}_table, &ctx) < 0) {{
+           return Ndt_SetError(&ctx);
+       }}
+
+       initialized = 1;
     }}
 
     m = PyModule_Create(&{modulename}_module);
@@ -132,10 +98,9 @@ PyInit_{modulename}(void)
         goto error;
     }}
 
-    if (gm_tbl_map(add_function, m) < 0) {{
+    if (Gumath_AddFunctions(m, gmk_{modulename}_table) < 0) {{
         goto error;
     }}
-
 
     return m;
 
