@@ -14,14 +14,15 @@ except ImportError:
 from xndtools.kernel_generator import generate_module
 from argparse import Namespace
 
+# Import requirements:
 import ndtypes
 NDTYPES_ROOT = os.path.dirname(ndtypes.__file__)
 import xnd
 XND_ROOT = os.path.dirname(xnd.__file__)
 import gumath
-GUMATH_ROOT = os.path.dirname(gumath.__file__) # TODO: gumath installtion of header and library files is broken
-GUMATH_ROOT2 = os.path.join(os.environ['HOME'], 'git', 'gumath','python','gumath')
+GUMATH_ROOT = os.path.dirname(gumath.__file__)
 
+# TODO: detect conda, mkl
 CONDA_PREFIX=os.environ['CONDA_PREFIX']
 MKLROOT = CONDA_PREFIX
 
@@ -29,8 +30,8 @@ kernel_configuration_files = ['example-kernels.cfg']
 
 ext_modules = []
 for cfg in kernel_configuration_files:
-    include_dirs = [NDTYPES_ROOT, XND_ROOT, GUMATH_ROOT, GUMATH_ROOT2, os.path.join(CONDA_PREFIX, 'include')]
-    library_dirs = [NDTYPES_ROOT, XND_ROOT, GUMATH_ROOT, GUMATH_ROOT2, os.path.join(CONDA_PREFIX, 'lib')]
+    include_dirs = [NDTYPES_ROOT, XND_ROOT, GUMATH_ROOT, os.path.join(CONDA_PREFIX, 'include')]
+    library_dirs = [NDTYPES_ROOT, XND_ROOT, GUMATH_ROOT, os.path.join(CONDA_PREFIX, 'lib')]
     libraries = ["ndtypes", "xnd", "gumath"]
     
     m = generate_module(Namespace(config_file = cfg,
@@ -63,8 +64,8 @@ for cfg in kernel_configuration_files:
 def mkl_blas_ext():
     depends = []
     sources = ["mkl_blas.c","mkl_blas_kernels.c"]
-    include_dirs = [NDTYPES_ROOT, XND_ROOT, GUMATH_ROOT, GUMATH_ROOT2, os.path.join(CONDA_PREFIX, 'include'), os.path.join(MKLROOT, 'include')]
-    library_dirs = [NDTYPES_ROOT, XND_ROOT, GUMATH_ROOT, GUMATH_ROOT2, os.path.join(CONDA_PREFIX, 'lib'), os.path.join(MKLROOT, 'lib')]
+    include_dirs = [NDTYPES_ROOT, XND_ROOT, GUMATH_ROOT, os.path.join(CONDA_PREFIX, 'include'), os.path.join(MKLROOT, 'include')]
+    library_dirs = [NDTYPES_ROOT, XND_ROOT, GUMATH_ROOT, os.path.join(CONDA_PREFIX, 'lib'), os.path.join(MKLROOT, 'lib')]
     libraries = ["ndtypes", "xnd", "gumath"]
     libraries += ['mkl_intel_ilp64', 'mkl_sequential', 'mkl_core', 'pthread', 'm', 'dl']
     extra_compile_args = ["-Wextra", "-Wno-missing-field-initializers", "-std=c11", '-DMKL_ILP64', '-m64']
