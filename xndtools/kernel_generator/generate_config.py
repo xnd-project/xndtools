@@ -113,9 +113,9 @@ Editing instructions
 1.2 MODULE section contains header_code that may contain C code that
     is inserted after include statements of extension modules source.
 
-2.1 FUNCTION name must be changed to appropriate one [REQUIRED].
+2.1 KERNEL name must be changed to appropriate one [REQUIRED].
 
-2.2 FUNCTION section contains skip field. When present, the corrsponding
+2.2 KERNEL section contains skip field. When present, the corrsponding
     section will be ignored. When done editing the section, you can
     delete the skip field. [REQUIRED]
 
@@ -150,7 +150,8 @@ def generate_config(modulename,
                     includes,
                     target_file = None,
                     include_dirs = [],
-                    include_patterns = [], exclude_patterns = [],
+                    match_patterns = [],
+                    exclude_patterns = [],
                     libraries = [], library_dirs = [],
                     reader_options = {},
                     typemap_options = {},
@@ -187,8 +188,8 @@ def generate_config(modulename,
     library_dirs : list
       Specify a list of directories containing the libraries.
 
-    include_patterns, exclude_patterns : list
-      Specify include/exculde patterns for C function names. The
+    match_patterns, exclude_patterns : list
+      Specify match/exclude patterns for C function names. The
       patterns must be valid re strings.
   
     strip_left, strip_right : list
@@ -197,13 +198,27 @@ def generate_config(modulename,
     """
     own_target_file = False
     if target_file is None:
-        target_file = 'kernels_{}.cfg'.format(modulename)
-    
-    if isinstance(target_file, str):
+        target_file = 'kernels-{}.cfg'.format(modulename)
+    existing_names = []
+    original_content = ''
+    if target_file == 'stdout':
+        target_file = sys.stdout
+        own_target_file = False
+    elif isinstance(target_file, str):
         if os.path.exists(target_file):
-            print ('generate_config: targer file {!r} exists! SKIPPING'.format(target_file))
-            return
-        print('generate_config: results will be saved to {}'.format(target_file))
+            reader = PrototypeReader()    
+            config = load_kernel_config(target_file)
+            for section in config.sections():
+                if section.startswith('KERNEL'):
+                    f = config[section]
+                    for prototype in reader(f['prototypes']):
+                        existing_names.append(prototype['name'])
+            original_content = open(target_file).read()
+            #print ('generate_config: target file {!r} exists! SKIPPING'.format(target_file))
+            #return
+            print('generate_config: results will be appended to {}'.format(target_file))
+        else:
+            print('generate_config: results will be saved to {}'.format(target_file))
         target_file = open(target_file, 'w')
         own_target_file = True
 
@@ -232,7 +247,8 @@ def generate_config(modulename,
     functions = []
     for filename in header_files:
         source = open (filename).read()
-        for prototype in reader(source, include_patterns = include_patterns, exclude_patterns = exclude_patterns):
+        for prototype in reader(source, match_patterns = match_patterns, exclude_patterns = exclude_patterns + existing_names):
+            print('generate_config: included: {}'.format(prototype['name']))
             prototype.signature(typemap=typemap) # makes typemap
             s = prototype.signature(typemap=typemap, kind='match')
             groups[s].append(prototype)
@@ -251,10 +267,10 @@ def generate_config(modulename,
                               inplace_arguments = ', '.join([a['name'] for a in prototypes[0]['arguments'] if not a['type'].startswith('const ')]),
                               output_arguments = '',
                               hide_arguments = '',
-                              pre_loop_code = '',
-                              pre_call_code = '',
-                              post_call_code = '',
-                              post_loop_code = '',
+                              #pre_loop_code = '',
+                              #pre_call_code = '',
+                              #post_call_code = '',
+                              #post_loop_code = '',
                           )))
             
     default = dict(
@@ -264,15 +280,21 @@ def generate_config(modulename,
         libraries = '\n'+'\n'.join(libraries),
         library_dirs = '\n'+'\n'.join(library_dirs),
         header_code = '',
-        
+        kinds = 'Xnd', # TODO: move to command line options
+        vectorize = 'false',  # TODO: move to command line options
     )
-    config['MODULE '+modulename] = default
-    for name, func_config in functions:
-        config['FUNCTION '+name] = func_config
 
+
+    if original_content:
+        target_file.write(original_content+'\n')
+    else:
+        target_file.write('# This file is generated from {} and requires editing.'.format(__file__))
+        target_file.write(config_editing_instructions.replace('\n', '\n#  ')+'\n')
+        config['MODULE '+modulename] = default
     
-    target_file.write('# This file is generated from {} and requires editing.'.format(__file__))
-    target_file.write(config_editing_instructions.replace('\n', '\n#  ')+'\n')    
+    for name, func_config in functions:
+        config['KERNEL '+name] = func_config
+
     config.write(target_file)
 
     if own_target_file:

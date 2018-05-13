@@ -18,7 +18,7 @@ def generate_config(args):
         args.module = os.path.splitext(os.path.basename(first))[0]
     if args.config_file is None:
         args.config_file = '{module}-kernels.cfg'.format(**vars(args))
-    if os.path.isfile(args.config_file):
+    if 0 and os.path.isfile(args.config_file):
         print('Configuration file {!r} exists! Remove it manually to override.\n'.format(args.config_file))
     else:
         from xndtools.kernel_generator.generate_config import generate_config
@@ -27,10 +27,14 @@ def generate_config(args):
         exclude_patterns = []
         if args.exclude is not None:
             exclude_patterns = [args.exclude]
+        if args.match is not None:
+            match_patterns = [args.match]
         r = generate_config(modulename=args.module,
-                        includes = includes,
-                        include_dirs = include_dirs,
-                        target_file = args.config_file,
+                            exclude_patterns = exclude_patterns,
+                            match_patterns = match_patterns,
+                            includes = includes,
+                            include_dirs = include_dirs,
+                            target_file = args.config_file,
         )
     print('\nHINT: After editing the configuration file, run:\n\n  {} kernel {}\n'.format(xnd_tools_script, args.config_file))
     return r
@@ -58,7 +62,7 @@ def generate_kernel(args):
         args.source_dir = ''
     source_dir = args.source_dir
     
-    from xndtools.kernel_generator.generate_kernel import generate_kernel
+    from xndtools.kernel_generator.generate_kernel2 import generate_kernel
     r = generate_kernel(config_file = args.config_file,
                         target_file = args.target_file)
     print('HINT: To create extension module, run:\n\n  {} module {}\n'.format(xnd_tools_script, args.config_file))

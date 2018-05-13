@@ -15,7 +15,7 @@ def generate_module(config_file,
     module_data = get_module_data(config_file, package=package)
     module_data['language'] = target_language
     if target_file is None:
-        target_file = os.path.join(source_dir, '{modulename}-{language}.c'.format(**module_data))
+        target_file = os.path.join(source_dir, '{module_name}-{language}.c'.format(**module_data))
     if target_language == 'python':
         module_source = pymodule_template.format(**module_data)
     else:
@@ -30,7 +30,7 @@ def generate_module(config_file,
                 include_dirs = [
                     os.path.dirname(__file__), # location of pygumath.c
                 ] + module_data['include_dirs'],
-                extname = module_data['fullname'],
+                extname = module_data['module_name'],
                 language = target_language)
     
 pymodule_template = '''
@@ -46,15 +46,15 @@ pymodule_template = '''
 /****************************************************************************/
 
 /* Function table */
-static gm_tbl_t *gmk_{modulename}_table = NULL;
+static gm_tbl_t *gmk_{module_name}_table = NULL;
 
 /****************************************************************************/
 /*                                  Module                                  */
 /****************************************************************************/
 
-static struct PyModuleDef {modulename}_module = {{
+static struct PyModuleDef {module_name}_module = {{
     PyModuleDef_HEAD_INIT,        /* m_base */
-    "{fullname}",                 /* m_name */
+    "{module_name}",                 /* m_name */
     NULL,                         /* m_doc */
     -1,                           /* m_size */
     NULL,                         /* m_methods */
@@ -64,10 +64,10 @@ static struct PyModuleDef {modulename}_module = {{
     NULL                          /* m_free */
 }};
 
-int gmk_init_{modulename}_kernels(gm_tbl_t *tbl, ndt_context_t *ctx);
+int gmk_init_{module_name}_kernels(gm_tbl_t *tbl, ndt_context_t *ctx);
 
 PyMODINIT_FUNC
-PyInit_{modulename}(void)
+PyInit_{module_name}(void)
 {{
     NDT_STATIC_CONTEXT(ctx);
     PyObject *m = NULL;
@@ -81,24 +81,24 @@ PyInit_{modulename}(void)
             return NULL;
        }}
 
-       gmk_{modulename}_table = gm_tbl_new(&ctx);
-       if (gmk_{modulename}_table == NULL) {{
+       gmk_{module_name}_table = gm_tbl_new(&ctx);
+       if (gmk_{module_name}_table == NULL) {{
            return Ndt_SetError(&ctx);
        }}
 
-       if (gmk_init_{modulename}_kernels(gmk_{modulename}_table, &ctx) < 0) {{
+       if (gmk_init_{module_name}_kernels(gmk_{module_name}_table, &ctx) < 0) {{
            return Ndt_SetError(&ctx);
        }}
 
        initialized = 1;
     }}
 
-    m = PyModule_Create(&{modulename}_module);
+    m = PyModule_Create(&{module_name}_module);
     if (m == NULL) {{
         goto error;
     }}
 
-    if (Gumath_AddFunctions(m, gmk_{modulename}_table) < 0) {{
+    if (Gumath_AddFunctions(m, gmk_{module_name}_table) < 0) {{
         goto error;
     }}
 

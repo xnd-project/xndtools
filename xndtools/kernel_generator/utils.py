@@ -168,7 +168,7 @@ class Prototype(dict):
         return self['arguments'][self['argument_map'][name]]
     
     def set_argument_value(self, name, value):
-        print('{}.set_argument_value({!r}, {!r})'.format(type(self).__name__, name, value))
+        #print('{}.set_argument_value({!r}, {!r})'.format(type(self).__name__, name, value))
         a = self.get_argument(name)
         if value[-1] in '])':
             i = value.index('(')
@@ -176,11 +176,11 @@ class Prototype(dict):
             f = value[:i].strip().lower()
             args = value[i+1:-1].strip()
             if f == 'shape':
-                value = 'xnd_fixed_shape_at(&gmk_{})'.format(args)
+                value = 'xnd_fixed_shape_at(&gmk_input_{})'.format(args)
             elif f == 'len':
-                value = 'xnd_fixed_shape_at(&gmk_{}, 0)'.format(args)
+                value = 'xnd_fixed_shape_at(&gmk_input_{}, 0)'.format(args)
             elif f== 'ndim':
-                value = 'xnd_ndim(&gmk_{})'.format(args)
+                value = 'xnd_ndim(&gmk_input_{})'.format(args)
             else:
                 print('{}.set_argument_value:NOT IMPL:{!r}'.format(type(self).__name__, value))
             if 'value' in a:
@@ -236,7 +236,7 @@ class Prototype(dict):
 
     def set_argument_shape(self, name, shape):
         a = self.get_argument(name)
-        a['shape'] = shape
+        a['shape'] = [dict(value=dim) for dim in shape]
 
     def get_sorted_arguments(self):
         """ Return a list of argument names sorted in the order of their mutual dependecies.
@@ -319,9 +319,9 @@ class ArgumentDeclaration(dict):
             name = self.get('name')
             if name is not None:
                 name = name.lower()
-                if prototype is None: # function
-                    repl = '_'
-                    name = name.replace('s',repl).replace('d',repl).replace('c', repl).replace('z',repl)
+                #if prototype is None: # function
+                #    repl = '_'
+                #    name = name.replace('s',repl).replace('d',repl).replace('c', repl).replace('z',repl)
                 r += name
             r = self.get('left_modifier', '') + r + self.get('right_modifier', '')
             #if self['type'].startswith('const'):

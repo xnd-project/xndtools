@@ -92,7 +92,7 @@ setup(
     containing gumath wrappers to various software libraries.
     """,
     license='BSD',
-    version='0.1',
+    version='0.2',
     author='Pearu Peterson',
     maintainer='Pearu Peterson',
     author_email='pearu.peterson@quansight.com',

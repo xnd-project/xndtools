@@ -16,7 +16,7 @@ setup(
       kernel_generator - generate kernels for gumath
     """,
     license='BSD',
-    version='0.1',
+    version='0.2',
     author='Pearu Peterson',
     maintainer='Pearu Peterson',
     author_email='pearu.peterson@quansight.com',
@@ -35,6 +35,6 @@ setup(
     ],
     include_package_data=True,
     packages=['xndtools', 'xndtools.kernel_generator'],
-    package_data={'': glob('xndtools/kernel_generator/*.c')+['xndtools/kernel_generator/*.h']},
+    #package_data={'': glob('xndtools/kernel_generator/*.c')+['xndtools/kernel_generator/*.h']},
     scripts = ['scripts/xnd_tools'],
 )
