@@ -137,7 +137,7 @@ class PrototypeReader(object):
         self._type_specs.update(attrs['type'].split())
         return attrs
 
-    def __call__ (self, source, include_patterns = [], exclude_patterns = []):
+    def __call__ (self, source, match_patterns = [], exclude_patterns = []):
         """Extract C function prototypes from a text source.
 
         Returns a list of Prototype instances.  The Prototype instance is
@@ -159,11 +159,11 @@ class PrototypeReader(object):
         source = source.replace ('\\\n', '')                                   # resolve line continuations
         source = '\n'.join (line for line in source.split ('\n') if not line.startswith ('#')) # remove CPP directive lines
 
-        _include_patterns = []
-        for p in include_patterns:
+        _match_patterns = []
+        for p in match_patterns:
             if isinstance(p, str):
                 p = re.compile(p)
-            _include_patterns.append(p)
+            _match_patterns.append(p)
         _exclude_patterns = []
         for p in exclude_patterns:
             if isinstance(p, str):
@@ -179,12 +179,13 @@ class PrototypeReader(object):
             if not func_name: # a function must have a name
                 continue
 
-            skip = True and _include_patterns
-            for p in _include_patterns:
+            skip = True and _match_patterns
+            for p in _match_patterns:
                 if p.match(func_name):
                     skip = False
                     break
             if skip:
+                print('{}: no match: {}'.format(type(self).__name__, func_name))
                 continue
 
             skip = False
@@ -193,8 +194,9 @@ class PrototypeReader(object):
                     skip = True
                     break
             if skip:
+                print('{}: excluded: {}'.format(type(self).__name__, func_name))
                 continue
-
+            
             # extract function specifiers
             types, specifiers, conventions = [], [], []
             for word in func_attrs['type'].split():
