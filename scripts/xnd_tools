@@ -46,11 +46,13 @@ def main():
                                help='Specify module name. Default name is derived from the (first) header file name.')
     parser_config.add_argument('-c', '--config-file',
                                default = None,
-                               help='Specify path to the configuration file to be created.')
+                               help='Specify path to the configuration file to be created. Use "stdout" to output the kernel configuration to standard output.')
     parser_config.add_argument('header_files', metavar='header-file', nargs='+',
                                help='Path to header file')
     parser_config.add_argument('-x', '--exclude', default=None,
-                                help='Specify regex pattern to exclude C function names.')
+                                help='Specify regex pattern to exclude C function names. Default is exclude none.')
+    parser_config.add_argument('-r', '--match', default=None,
+                                help='Specify regex pattern to match C function names. Default is match all.')
     parser_config.set_defaults(func=xndtools.kernel_generator.generate_config)
 
     # kernel
