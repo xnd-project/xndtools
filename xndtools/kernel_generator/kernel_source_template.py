@@ -20,8 +20,8 @@ def kind_is(kind):
     return Predicate(lambda data: data.get('kind') == kind)
 vectorized = Predicate(lambda data: data.get('vectorized') == 'true')
 is_scalar = Predicate(lambda data: not (data.get('left_modifier') or data.get('right_modifier')))
-is_scalar_ptr = Predicate(lambda data: data.get('left_modifier')=='*' and not data.get('right_modifier') and not data.get('shape'))
-is_array = Predicate(lambda data: data.get('left_modifier')=='*' and data.get('shape'))
+is_scalar_ptr = Predicate(lambda data: data.get('left_modifier')=='*' and not data.get('right_modifier') and data.get('shape') is None)
+is_array = Predicate(lambda data: data.get('left_modifier')=='*' and data.get('shape') is not None)
 is_argument = Predicate(lambda data: not data['name'].endswith('_return_value_'))
 is_input = has_intent('input')
 #is_hide = -is_input
@@ -280,7 +280,7 @@ source_template['kernels'] = Template(
 source_template['kernels']['arguments'] = Template(
     dict(
         declarations = [(is_scalar+is_scalar_ptr,'{ctype} {name};'),
-                        (is_array,'{ctype}* {name};'),
+                        (is_array,'{ctype}* {name} = NULL;'),
                         (is_input, 'const xnd_t gmk_input_{name} = gmk_stack[{input_index}];'),
                         (is_output, 'const xnd_t gmk_output_{name} = gmk_stack[{output_index}];'),
         ],
@@ -289,13 +289,14 @@ source_template['kernels']['arguments'] = Template(
                  '/* initialize {name} */',
                  (is_input,
                   (has('value'), [
-                      (is_scalar, '{name} = (xnd_is_na(gmk_input_{name}) ? {value} : *GMK_FIXED_SCALAR_DATA({ctype}, gmk_input_{name}));'),
+                      (is_scalar+is_scalar_ptr, '{name} = (xnd_is_na(&gmk_input_{name}) ? {value} : *GMK_FIXED_SCALAR_DATA({ctype}, gmk_input_{name}));'),
                   ],
                    [
-                       (is_scalar, '{name} = *GMK_FIXED_SCALAR_DATA({ctype}, gmk_input_{name});'),
+                       (is_scalar+is_scalar_ptr, '{name} = *GMK_FIXED_SCALAR_DATA({ctype}, gmk_input_{name});'),
+                       (is_array, '{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});'),
                    ]),
                   (has('value'), [
-                      (is_scalar, '{name} = {value};')
+                      (is_scalar+is_scalar_ptr, '{name} = {value};')
                   ])
                  ),
              ], # statements

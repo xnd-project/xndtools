@@ -99,7 +99,8 @@ def get_module_data(config_file, package=None):
                     
             # resolve argument shapes
             shape_map = {}
-            for name_shape in [a.strip() for a in f.get('dimension', '').split(',') if a]:
+            
+            for name_shape in split_expression(f.get('dimension', '')):
                 i = name_shape.index('(')
                 if i==-1 or name_shape[-1] !=')':
                     print('cannot determine shape from {!r}. IGNORING.'.format(name_shape))

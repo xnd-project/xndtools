@@ -234,14 +234,16 @@ class Template(object):
         if self.initialize is not None:
             self.initialize(data)
         for k, v in data.items():
+            if isinstance(v, list):
+                tmp_data[k] += v
+            else:
+                tmp_data[k] = v
             if isinstance(v, list) and v:
                 subtemplate = self.subtemplates.get(k)
                 if subtemplate is None:
                     print('{}(name={}).__call__:warning: no sub-template {!r} (available: {})'.format(type(self).__name__, self.name, k, ', '.join(self.subtemplates)))
-                    tmp_data[k] = v
                 elif not callable(subtemplate):
                     print('{}(name={}).__call__:warning: sub-template {!r} not callable'.format(type(self).__name__, self.name, k))
-                    tmp_data[k] = v
                 else:
                     for v_ in v:
                         v__ = parent_data.copy()
@@ -266,11 +268,6 @@ class Template(object):
                                     raise NotImplementedError(repr((self.name, k,k_,type(r_))))
                         else:
                             raise NotImplementedError(repr((self.name, k,type(r))))
-            elif isinstance(v, list):
-                tmp_data[k] += v
-            else:
-                tmp_data[k] = v
-
         for k in tmp_data:
             if k.endswith('-list'):
                 tmp_data[k] = self._get_join(k, data)(tmp_data[k])

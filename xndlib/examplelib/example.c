@@ -1,5 +1,51 @@
+/*
+
+  Argument types:
+    scalar, scalar_ptr, 1d-array, 2d-c-array, 2d-f-array, 1d-refs-to-1d-arrays
+  
+  Argument intents:
+    hide, input, inplace, output, input-output, inplace-output 
+
+  Function return types:
+    void, scalar
+
+ */
+  
+
 #include <stdio.h>
 #include "example.h"
+
+/* 
+   scalar intent(input)
+*/
+
+int int_intent_in(int a)
+{ return a + 1; }
+double double_intent_in(double a)
+{ return a + 1.0; }
+
+int int_p_intent_in(int* a)
+{ return (*a) + 1; }
+double double_p_intent_in(double* a)
+{ return (*a) + 1.0; }
+
+int intarr_intent_in(int* a, int n)
+{ return a[0] + a[n-1]; }
+double doublearr_intent_in(double* a, int n)
+{ return a[0] + a[n-1]; }
+
+double doublearr_2d_c_intent_in(double* a, int m, int n)
+{ return a[0] + a[n-1]; }
+
+double doublearr_2d_f_intent_in(double* a, int m, int n)
+{ return a[0] + a[n*m-m]; }
+
+double doublearr_1d1d_c_intent_in(double** a, int m, int n) // TODO
+{ return a[0][0] + a[0][n-1]; }
+
+double doublearr_1d1d_f_intent_in(double** a, int m, int n) // TODO
+{ return a[0][0] + a[n-1][0]; }
+
 
 void i_add_one(int x, int* r) { *r = x + 1; }
 void l_add_one(long x, long* r) { *r = x + 1; }

@@ -256,15 +256,25 @@ def generate_config(modulename,
     for s in sorted(groups):
         prototypes = groups[s]
         name = s.rsplit(maxsplit=1)[-1].strip()
-            
+
+        # inital estimates
+        input_arguments = []
+        inplace_arguments = []
+        for arg in prototypes[0]['arguments']:
+            if arg.is_scalar:
+                input_arguments.append(arg['name'])
+            else:
+                inplace_arguments.append(arg['name'])
+        
+        
         functions.append((name,
                           dict(
                               SKIP = '# REMOVE THIS LINE WHEN READY',
                               prototypes = '\n'+'\n'.join((str(p) for p in prototypes)),
                               description = '',
                               dimension = '',
-                              input_arguments = ', '.join([a['name'] for a in prototypes[0]['arguments'] if a['type'].startswith('const ')]),
-                              inplace_arguments = ', '.join([a['name'] for a in prototypes[0]['arguments'] if not a['type'].startswith('const ')]),
+                              input_arguments = ', '.join(input_arguments),
+                              inplace_arguments = ', '.join(inplace_arguments),
                               output_arguments = '',
                               hide_arguments = '',
                               #pre_loop_code = '',

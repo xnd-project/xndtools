@@ -29,6 +29,8 @@ def generate_config(args):
             exclude_patterns = [args.exclude]
         if args.match is not None:
             match_patterns = [args.match]
+        else:
+            match_patterns = []
         r = generate_config(modulename=args.module,
                             exclude_patterns = exclude_patterns,
                             match_patterns = match_patterns,
@@ -62,7 +64,7 @@ def generate_kernel(args):
         args.source_dir = ''
     source_dir = args.source_dir
     
-    from xndtools.kernel_generator.generate_kernel2 import generate_kernel
+    from xndtools.kernel_generator.generate_kernel import generate_kernel
     r = generate_kernel(config_file = args.config_file,
                         target_file = args.target_file)
     print('HINT: To create extension module, run:\n\n  {} module {}\n'.format(xnd_tools_script, args.config_file))
