@@ -4,6 +4,7 @@
 # Created: April 2018
 
 import os
+import sys
 from copy import deepcopy
 from .readers import PrototypeReader, load_kernel_config
 from .utils import NormalizedTypeMap, split_expression
@@ -28,15 +29,25 @@ def generate_kernel(config_file,
                     source_dir = ''):
     data = get_module_data(config_file)
     source = source_template(data)
-    if target_file is None:
-        target_file = os.path.join(source_dir, '{module_name}-kernels.c'.format(**data))
-    f = open(target_file, 'w')
-    f.write(source['c_source'])
-    f.close()
-    print('Created {!r}'.format(target_file))
+    own_target_file = False
+    if target_file == 'stdout':
+        target_file = sys.stdout
+        own_target_file = False
+    else:
+        if target_file is None:
+            target_file = os.path.join(source_dir, '{module_name}-kernels.c'.format(**data))
+        if isinstance(target_file, str):
+            print('generate_kernel: kernel sources are saved to {}'.format(target_file))
+            target_file = open(target_file, 'w')
+            own_target_file = True
+        else:
+            own_target_file = False
 
+    target_file.write(source['c_source'])
+    if own_target_file:
+        target_file.close()
     return dict(config_file = config_file,
-                sources = [target_file] + data['sources'])
+                sources = [target_file.name] + data['sources'])
 
 def get_module_data(config_file, package=None):
     config = load_kernel_config(config_file)
@@ -48,7 +59,6 @@ def get_module_data(config_file, package=None):
     typemap_tests = set()
     
     default_kinds_value = 'Xnd' # TODO: move to command line options
-    default_vectorize_value = 'false'  # TODO: move to command line options
     
     for section in config.sections():
         if section.startswith('MODULE'):
@@ -77,7 +87,6 @@ def get_module_data(config_file, package=None):
                 sources.append(line)
 
             default_kinds = split_expression(current_module.get('kinds', default_kinds_value))
-            default_vectorize = split_expression(current_module.get('vectorize', default_vectorize_value))
                 
         elif section.startswith('KERNEL'):
             f = config[section]
@@ -89,7 +98,6 @@ def get_module_data(config_file, package=None):
 
             prototypes = reader(f['prototypes'])
             kinds = split_expression(f.get('kinds', ''))
-            vectorize = split_expression(f.get('vectorize', ''))
             
             # set argument intents
             input_arguments = split_expression(f.get('input_arguments', ''))
@@ -129,11 +137,9 @@ def get_module_data(config_file, package=None):
                     prototype.set_argument_shape(name, shape)
 
                 for kind in kinds or default_kinds:
-                    for vectorized in vectorize or default_vectorize:
-                        kernel = deepcopy(prototype)
-                        kernel['kind'] = kind
-                        kernel['vectorized'] = vectorized
-                        kernels.append(kernel)
+                    kernel = deepcopy(prototype)
+                    kernel['kind'] = kind
+                    kernels.append(kernel)
 
     l = []
     for h in current_module.get('includes','').split():

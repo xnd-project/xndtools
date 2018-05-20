@@ -3,6 +3,7 @@
 # Author: Pearu Peterson
 # Created: May 2018
 
+from collections import defaultdict
 from copy import deepcopy
 from .templating import Template, Predicate, flatten
 
@@ -18,7 +19,6 @@ def type_is(typ):
     return Predicate(lambda data: data.get('type') == typ)
 def kind_is(kind):
     return Predicate(lambda data: data.get('kind') == kind)
-vectorized = Predicate(lambda data: data.get('vectorized') == 'true')
 is_scalar = Predicate(lambda data: not (data.get('left_modifier') or data.get('right_modifier')))
 is_scalar_ptr = Predicate(lambda data: data.get('left_modifier')=='*' and not data.get('right_modifier') and data.get('shape') is None)
 is_array = Predicate(lambda data: data.get('left_modifier')=='*' and data.get('shape') is not None)
@@ -63,7 +63,19 @@ def join_initialize_list(lst):
     return '\n  '.join(flatten([stmts[n] for n in lst if n in stmts]))
 
 def join_signatures_list(lst):
+    # Collects kind_values of kernels
     # Appends NULL value.
+
+    sig_kindmap = defaultdict(list)
+    
+    for signature in lst:
+        name, sig, kind_value = signature.split('|', 3)
+        sig_kindmap[name,sig].append(kind_value)
+
+    lst = []
+    for (name, sig), kind_values in sig_kindmap.items():
+        lst.append('{{ .name = "{}", .sig = "{}", {} }}'.format(name, sig, ', '.join(kind_values)))
+        
     lst = lst + ['{ .name = NULL, .sig = NULL }']
     return ',\n  '.join(lst)
 
@@ -208,6 +220,13 @@ typemap_tests_template = '''
     }}
 '''
 
+notimpl_kernel_template = '''
+static int
+{wrapper_name}(xnd_t gmk_stack[], ndt_context_t *gmk_ctx) {{
+  NOT_IMPLEMENTED_KIND_{kind}_for_{function_name};
+}}
+'''
+
 xnd_kernel_template = '''
 static int
 {wrapper_name}(xnd_t gmk_stack[], ndt_context_t *gmk_ctx) {{
@@ -217,10 +236,9 @@ static int
   {finalize-list}
   return 0;
 }}
-
 '''
 
-xnd_vectorized_kernel_template = '''
+c_kernel_template = '''
 static int
 {wrapper_name}(xnd_t gmk_stack[], ndt_context_t *gmk_ctx) {{
   {declarations-list}
@@ -229,7 +247,25 @@ static int
   {finalize-list}
   return 0;
 }}
+'''
 
+f_kernel_template = '''
+static int
+{wrapper_name}(xnd_t gmk_stack[], ndt_context_t *gmk_ctx) {{
+  {declarations-list}
+  {initialize-list}
+  {return_value}{function_name}({arguments-list});
+  {finalize-list}
+  return 0;
+}}
+'''
+
+strided_kernel_template = '''
+static int
+{wrapper_name}(char **args, intptr_t *dimensions, intptr_t *steps, void *data) {{
+  NOT_IMPLEMENTED_KIND_{kind}_for_{function_name};
+  return 0;
+}}
 '''
 
 #
@@ -254,16 +290,18 @@ source_template['typemap_tests'] = Template(
 
 source_template['kernels'] = Template(
     dict(kernels = [
-        (kind_is('Xnd')*(-vectorized), xnd_kernel_template),
-        (kind_is('Xnd')*(vectorized), xnd_vectorized_kernel_template),
-        #(kind_is('Strided')*(-vectorized()), strided_kernel_template),
-        #(kind_is('Strided')*(vectorized()), strided_vectorized_kernel_template),
+        (kind_is('Xnd'), xnd_kernel_template),
+        (kind_is('C'), c_kernel_template),
+        (kind_is('Fortran'), f_kernel_template),
+        (kind_is('Strided'), strided_kernel_template),
+        (-(kind_is('Xnd')+kind_is('C')+kind_is('Fortran')+kind_is('Strided')), notimpl_kernel_template),
     ],
-         signatures = '{{ .name = "{kernel_name}", .sig = "{sig}", .vectorize = {vectorized}, .{kind} = {wrapper_name} }}',
+         #signatures = '{{ .name = "{kernel_name}", .sig = "{sig}", .{kind} = {wrapper_name} }}',
+         signatures = '{kernel_name}|{sig}|.{kind} = {wrapper_name}',
          
     ),
     variables = dict(
-        wrapper_name = (vectorized, 'gmk_{kind}_vectorized_{function_name}', 'gmk_{kind}_{function_name}'),
+        wrapper_name = 'gmk_{kind}_{function_name}',
         sig = '{input_utype-list} -> {output_utype-list}',
         return_value = (-type_is('void'), '{function_name}_return_value_ = ', '')
     ),
@@ -293,7 +331,8 @@ source_template['kernels']['arguments'] = Template(
                   ],
                    [
                        (is_scalar+is_scalar_ptr, '{name} = *GMK_FIXED_SCALAR_DATA({ctype}, gmk_input_{name});'),
-                       (is_array, '{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});'),
+                       (is_array*(kind_is('C')+kind_is('Fortran')), '{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});'),
+                       (is_array*(kind_is('Xnd')), '{name} = NOT_IMPL_ENSURE_CONTIGUOUS(GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name}));'),
                    ]),
                   (has('value'), [
                       (is_scalar+is_scalar_ptr, '{name} = {value};')
@@ -332,7 +371,6 @@ def test():
     kernels = [
         {'argument_map': {'n': 0, 'r': 2, 'x': 1},
          'kind' : ['Xnd'][0],
-         'vectorized' : ['false', 'true'][0],
          
          'arguments': [{'depends': 'x',  # TODO
                         'intent': ('hide',),
@@ -359,7 +397,6 @@ def test():
          'type': 'void'},
         {
             'kind' : ['Xnd'][0],
-            'vectorized' : ['false', 'true'][0],
             'arguments' : [],
             'kernel_name' : 'foo',
             'function_name' : 'd_foo',
