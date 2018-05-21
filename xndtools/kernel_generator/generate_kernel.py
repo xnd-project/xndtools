@@ -96,7 +96,14 @@ def get_module_data(config_file, package=None):
             kernel_name = section.split(maxsplit=1)[1].strip()
             description = f.get('description','').strip()
 
-            prototypes = reader(f['prototypes'])
+            prototypes = reader(f.get('prototypes',''))
+            prototypes_C = reader(f.get('prototypes_C', ''))
+            prototypes_Fortran = reader(f.get('prototypes_Fortran',''))
+
+            if not (prototypes or prototypes_C or prototypes_Fortran):
+                print('get_module_data: no prototypes|prototypes_C|prototypes_Fortran defined in [KERNEL {}]'.format(kernel_name))
+                continue
+            
             kinds = split_expression(f.get('kinds', ''))
             
             # set argument intents
@@ -118,28 +125,33 @@ def get_module_data(config_file, package=None):
                 shape_map[name] = shape
 
             # propagate prototypes to kernels
-            for prototype in prototypes:
-                prototype['kernel_name'] = kernel_name
-                prototype['description'] = description
-                prototype['function_name'] = prototype.pop('name')
+            for prototypes_, kinds_ in [
+                    (prototypes_C, ['C']),
+                    (prototypes_Fortran, ['Fortran']),
+                    (prototypes, kinds or default_kinds),
+            ]:
+                for prototype in prototypes_:
+                    prototype['kernel_name'] = kernel_name
+                    prototype['description'] = description
+                    prototype['function_name'] = prototype.pop('name')
 
-                apply_typemap(prototype, typemap, typemap_tests)
-                
-                for name in input_arguments:
-                    prototype.set_argument_intent(name, 'input')
-                for name in inplace_arguments:
-                    prototype.set_argument_intent(name, 'inplace')
-                for name in output_arguments:
-                    prototype.set_argument_intent(name, 'output')
-                for name in hide_arguments:
-                    prototype.set_argument_intent(name, 'hide')
-                for name, shape in shape_map.items():
-                    prototype.set_argument_shape(name, shape)
+                    apply_typemap(prototype, typemap, typemap_tests)
 
-                for kind in kinds or default_kinds:
-                    kernel = deepcopy(prototype)
-                    kernel['kind'] = kind
-                    kernels.append(kernel)
+                    for name in input_arguments:
+                        prototype.set_argument_intent(name, 'input')
+                    for name in inplace_arguments:
+                        prototype.set_argument_intent(name, 'inplace')
+                    for name in output_arguments:
+                        prototype.set_argument_intent(name, 'output')
+                    for name in hide_arguments:
+                        prototype.set_argument_intent(name, 'hide')
+                    for name, shape in shape_map.items():
+                        prototype.set_argument_shape(name, shape)
+
+                    for kind in kinds_:
+                        kernel = deepcopy(prototype)
+                        kernel['kind'] = kind
+                        kernels.append(kernel)
 
     l = []
     for h in current_module.get('includes','').split():
