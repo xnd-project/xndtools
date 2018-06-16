@@ -5,9 +5,20 @@ try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
-
+from distutils.command.build_py import build_py
+from shutil import copyfile
 from glob import glob
-    
+data_files = glob('xndtools/kernel_generator/*.c')+glob('xndtools/kernel_generator/*.h')
+
+class my_build_py(build_py):
+    def run(self):
+        if not self.dry_run:
+            target_dir = os.path.join(self.build_lib, 'xndtools', 'kernel_generator')
+            self.mkpath(target_dir)
+            for fn in data_files:
+                copyfile(fn, os.path.join(target_dir, os.path.basename(fn)))
+        build_py.run(self)
+
 setup(
     name='xndtools',
     description='XND Tools',
@@ -35,6 +46,7 @@ setup(
     ],
     include_package_data=True,
     packages=['xndtools', 'xndtools.kernel_generator'],
-    #package_data={'': glob('xndtools/kernel_generator/*.c')+['xndtools/kernel_generator/*.h']},
+    #package_data={'xndtools': data_files},
     scripts = ['scripts/xnd_tools'],
+    cmdclass={'build_py': my_build_py},
 )

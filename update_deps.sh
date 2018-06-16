@@ -17,7 +17,9 @@ git pull
 make
 make install
 
+
 cd $DIR/../gumath
+git pull
 ./configure --prefix=$PREFIX --with-includes=$PREFIX/include
 make
 make install
