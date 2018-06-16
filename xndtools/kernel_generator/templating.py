@@ -147,11 +147,32 @@ def apply_join(obj, data):
 
 class Block(object):
 
-    def __init__(self, start, end):
+    def __init__(self, start, end = ''):
+        if not end and isinstance(start, str) and '...' in start:
+            start, end = start.split('...', 1)
         self.start = start
         self.end = end
 
+    def when(self, predicate):
+        return (predicate, self)
 
+class When(object):
+
+    def __init__(self, predicate):
+        self.predicate = predicate
+
+    def __rmul__(self, other):
+        if isinstance(other, str):
+            if '...' in other:
+                return (self.predicate, Block(other))
+            return (self.predicate, other, None)
+        if isinstance(other, tuple):
+            if other and not isinstance(other[0], Predicate):
+                return (self.predicate,) + other
+            return (self.predicate, other)
+        if isinstance(other, list):
+            return (self.predicate, other)
+        return NotImplemented
         
 class Template(object):
     """ Template class.
@@ -283,6 +304,8 @@ class Template(object):
                                 elif isinstance(r_, list):
                                     #print(r_)
                                     tmp_data[subkey].extend(r_)
+                                elif isinstance(r_, Block):
+                                    tmp_data[subkey].append(r_.start)
                                 else:
                                     raise NotImplementedError(repr((self.name, k,k_,type(r_))))
                         else:
@@ -368,7 +391,12 @@ class Predicate(object):
         if callable(other):
             return type(self)(lambda data: self(data) and other(data))
         return NotImplemented
-    __rmul__ = __mul__
+    def __rmul__(self, other):
+        if callable(other):
+            return self * other
+        if isinstance(other, (str, tuple, list)):
+            return other * When(self)
+        return NotImplemented
 
     
 def has(key): # example usage of Predicate
