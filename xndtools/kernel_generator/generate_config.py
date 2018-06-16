@@ -291,6 +291,7 @@ def generate_config(modulename,
         library_dirs = '\n'+'\n'.join(library_dirs),
         header_code = '',
         kinds = 'Xnd', # TODO: move to command line options
+        ellipses = '..., var...',
     )
 
 

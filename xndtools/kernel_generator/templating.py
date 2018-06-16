@@ -98,6 +98,11 @@ def apply_format_map(obj, data):
                 dct[k] = v
         return dct
 
+    if isinstance(obj, Block):
+        start = apply_format_map(obj.start, data)
+        end = apply_format_map(obj.end, data)
+        return type(obj)(start, end)
+        
     raise NotImplementedError(repr(type(obj)))
 
 def apply_join(obj, data):
@@ -140,13 +145,22 @@ def apply_join(obj, data):
         return
     raise NotImplementedError(repr(type(obj)))
 
+class Block(object):
+
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
+
+
+        
 class Template(object):
     """ Template class.
     """
     def __init__(self, template,
                  variables = {},
                  initialize = None,
-                 join={},
+                 join = {},
+                 sort = {},
                  name = None):
         """Parameters
         ----------
@@ -174,6 +188,9 @@ class Template(object):
         join : dict
           Specify join mapping of `...-list` values.
 
+        sort : dict
+          Specify sort mapping of `...-list` values.
+
         name : {None, str}
           Specify name for the template. Useful for debugging.
 
@@ -185,6 +202,7 @@ class Template(object):
         self.subtemplates = {}
         self.name = name
         self.join = join
+        self.sort = sort
 
     def __setitem__(self, key, value):
         self.subtemplates[key] = value
@@ -263,14 +281,39 @@ class Template(object):
                                 if isinstance(r_, str):
                                     tmp_data[subkey].append(r_)
                                 elif isinstance(r_, list):
+                                    #print(r_)
                                     tmp_data[subkey].extend(r_)
                                 else:
                                     raise NotImplementedError(repr((self.name, k,k_,type(r_))))
                         else:
                             raise NotImplementedError(repr((self.name, k,type(r))))
-        for k in tmp_data:
+
+
+        for k in list(tmp_data):
+            v = tmp_data[k]
+            sorter = self.sort.get(k)
+            if sorter is not None:
+                v = sorter(v)
+            tmp_data[k] = v
+
+        #pprint(tmp_data)
+            
+        for k in list(tmp_data):
+            v = tmp_data[k]
             if k.endswith('-list'):
-                tmp_data[k] = self._get_join(k, data)(tmp_data[k])
+                assert isinstance(v, list),repr(type(v))
+                d = defaultdict(list)
+                for v_ in v:
+                    if isinstance(v_, Block):
+                        k_ = k[:-5]
+                        d[k_ + '-start-list'].append(v_.start)
+                        d[k_ + '-end-list'].insert(0, v_.end)
+                    else:
+                        d[k].append(v_)
+                for k_, v_ in d.items():
+                    tmp_data[k_] = self._get_join(k_, data)(v_)
+
+                #tmp_data[k] = self._get_join(k, data)(tmp_data[k])
 
         for k, v in parent_data.items():
             if k not in tmp_data:
@@ -371,7 +414,9 @@ def test():
 /* Visibles: {visibles-list} */
 {kernel_type} wapper_{project_name}_{kernel_name}() {{
   {initialize-list}
+  {block-start-list}
   {kernel_name}({arguments-list});
+  {block-end-list}
 }}
 '''
     
@@ -414,6 +459,8 @@ def test():
                 'outputs-list': ', ',
                 'visibles-list': ', ',
                 'initialize-list': join_initialize,
+                'block-start-list': '\n  ',
+                'block-end-list': '\n  ',
         }
         
     )
@@ -425,6 +472,7 @@ def test():
              #visibles = (is_output+is_input, '{name}'),
              visibles = [(is_input, '{name}'), (is_output, '{name}')],
              initialize = (has('value'), ['{name} = {value};', '{name}', (has('depends'),'{depends}', '')]),
+             block = [Block('/* start {name} */', '/* end {name} */')]
         ),
     )
     

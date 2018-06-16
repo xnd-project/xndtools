@@ -5,6 +5,7 @@
 
 import os
 import sys
+from glob import glob
 from copy import deepcopy
 from .readers import PrototypeReader, load_kernel_config
 from .utils import NormalizedTypeMap, split_expression
@@ -53,12 +54,15 @@ def get_module_data(config_file, package=None):
     config = load_kernel_config(config_file)
     reader = PrototypeReader()    
     current_module = None
-    include_dirs = []
-    sources = []
+    xndtools_datadir = os.path.dirname(__file__)
+    include_dirs = [xndtools_datadir]
+    sources = list(glob(os.path.join(xndtools_datadir, '*.c')))
     kernels = []
     typemap_tests = set()
     
     default_kinds_value = 'Xnd' # TODO: move to command line options
+    default_ellipses_value = '...'
+    default_arraytypes_value = 'symbolic'
     
     for section in config.sections():
         if section.startswith('MODULE'):
@@ -87,7 +91,9 @@ def get_module_data(config_file, package=None):
                 sources.append(line)
 
             default_kinds = split_expression(current_module.get('kinds', default_kinds_value))
-                
+            default_ellipses = split_expression(current_module.get('ellipses', default_ellipses_value))
+            default_arraytypes = split_expression(current_module.get('arraytypes', default_arraytypes_value))
+            
         elif section.startswith('KERNEL'):
             f = config[section]
             if f.get('skip', None):
@@ -103,8 +109,13 @@ def get_module_data(config_file, package=None):
             if not (prototypes or prototypes_C or prototypes_Fortran):
                 print('get_module_data: no prototypes|prototypes_C|prototypes_Fortran defined in [KERNEL {}]'.format(kernel_name))
                 continue
-            
+
+            debug = bool(f.get('debug', False))
             kinds = split_expression(f.get('kinds', ''))
+            ellipses = split_expression(f.get('ellipses', '')) or default_ellipses
+            arraytypes = split_expression(f.get('arraytypes', '')) or default_arraytypes
+
+            assert set(arraytypes).issubset(['symbolic', 'variable']),repr(arraytypes)
             
             # set argument intents
             input_arguments = split_expression(f.get('input_arguments', ''))
@@ -134,7 +145,7 @@ def get_module_data(config_file, package=None):
                     prototype['kernel_name'] = kernel_name
                     prototype['description'] = description
                     prototype['function_name'] = prototype.pop('name')
-
+                    prototype['debug'] = debug
                     apply_typemap(prototype, typemap, typemap_tests)
 
                     for name in input_arguments:
@@ -148,10 +159,24 @@ def get_module_data(config_file, package=None):
                     for name, shape in shape_map.items():
                         prototype.set_argument_shape(name, shape)
 
-                    for kind in kinds_:
-                        kernel = deepcopy(prototype)
-                        kernel['kind'] = kind
-                        kernels.append(kernel)
+                    for arraytype in arraytypes:
+                        for kind in kinds_:
+                            if arraytype == 'variable' and kind != 'Xnd':
+                                continue
+                            for ellipses_ in ellipses:
+                                kernel = deepcopy(prototype)
+                                kernel['kind'] = kind
+                                kernel['arraytype'] = arraytype
+                                if ellipses_:
+                                    if ellipses_ == '...' and arraytype == 'variable':
+                                        kernel['ellipses'] = 'var' + ellipses_ + ' * '
+                                    else:
+                                        kernel['ellipses'] = ellipses_ + ' * '
+                                else:
+                                    kernel['ellipses'] = ''
+
+                                kernels.append(kernel)
+                                #print('  {kernel_name}: using {function_name} for {kind}, ellipses={ellipses!r}'.format_map(kernel))
 
     l = []
     for h in current_module.get('includes','').split():

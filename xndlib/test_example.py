@@ -32,4 +32,4 @@ print('r=',r)
 
 
 #print (add_one(xnd(1)), add_one(xnd([2,3])))
-print (add_one(xnd([[1,2],[3,4]])))
+#print (add_one(xnd([[1,2],[3,4]])))

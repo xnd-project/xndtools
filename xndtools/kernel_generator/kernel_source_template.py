@@ -5,7 +5,7 @@
 
 from collections import defaultdict
 from copy import deepcopy
-from .templating import Template, Predicate, flatten
+from .templating import Template, Predicate, flatten, Block
 
 #
 # Predicate functions
@@ -19,6 +19,11 @@ def type_is(typ):
     return Predicate(lambda data: data.get('type') == typ)
 def kind_is(kind):
     return Predicate(lambda data: data.get('kind') == kind)
+def arraytype_is(arraytype):
+    return Predicate(lambda data: data.get('arraytype') == arraytype)
+is_symbolic = arraytype_is('symbolic')
+is_variable = arraytype_is('variable')
+debug = Predicate(lambda data: data.get('debug', False))
 is_scalar = Predicate(lambda data: not (data.get('left_modifier') or data.get('right_modifier')))
 is_scalar_ptr = Predicate(lambda data: data.get('left_modifier')=='*' and not data.get('right_modifier') and data.get('shape') is None)
 is_array = Predicate(lambda data: data.get('left_modifier')=='*' and data.get('shape') is not None)
@@ -26,11 +31,17 @@ is_argument = Predicate(lambda data: not data['name'].endswith('_return_value_')
 is_input = has_intent('input')
 #is_hide = -is_input
 is_output = has_intent('output')
+
+
 #
 # join functions
 #
 
-def join_initialize_list(lst):
+def join_kernels_list(lst):
+    # Eliminates dublicated functions.
+    return ''.join(set(lst))
+
+def sorted_initialize_list(lst):
     # Sorts list of initialization statements taking into account dependencies
     stmts = {}
     d = {}
@@ -60,7 +71,11 @@ def join_initialize_list(lst):
             if not deps.difference(lst):
                 lst.append(n)
                 continue
-    return '\n  '.join(flatten([stmts[n] for n in lst if n in stmts]))
+    return flatten([stmts[n] for n in lst if n in stmts])
+
+def join_initialize_list(lst):
+    #lst = sorted_initialize_list(lst)
+    return '\n  '.join(lst)
 
 def join_signatures_list(lst):
     # Collects kind_values of kernels
@@ -75,13 +90,15 @@ def join_signatures_list(lst):
     lst = []
     for (name, sig), kind_values in sig_kindmap.items():
         lst.append('{{ .name = "{}", .sig = "{}", {} }}'.format(name, sig, ', '.join(kind_values)))
+        kinds = [s.split('=')[0].strip()[1:] for s in kind_values]            
+        print('  {}(sig="{}", {})'.format(name, sig, ', '.join(kinds)))
         
     lst = lst + ['{ .name = NULL, .sig = NULL }']
     return ',\n  '.join(lst)
 
 def join_dimension_list(lst):
     # Prepends ellipses dimension
-    return ' * '.join(['...'] + lst)
+    return ' * '.join(lst)
 
 #
 # initialize functions
@@ -123,6 +140,7 @@ def initialize_kernels(data):
                     if dims is None:
                         dims = dims_map[dim['value']] = dimension_symbols[len(dims_map)]
                     dim['dimension'] = dims
+            arg['nofitems'] = '('+')*('.join([dim['value'] for dim in shape]) +')'
     if data['type'] != 'void':
         arg = dict(
             name = '{function_name}_return_value_'.format_map(data),
@@ -144,6 +162,12 @@ def initialize_kernels(data):
     data['input_utype-list'] = []
     data['output_utype-list'] = []
 
+def initialize_argument(data):
+    if is_scalar(data):
+        data['cfmt'] = dict(int32='%d', int64='%ld', float32='%f', float64='%f')[data['type']]
+    else:
+        data['cfmt'] = '%p'
+    
 #
 # Template strings
 #
@@ -158,12 +182,17 @@ c_source_template = '''
 #include "ndtypes.h"
 #include "xnd.h"
 #include "gumath.h"
+#include "xndtools.h"
 
 /* generated includes */
 {includes}
 
 #define GMK_FIXED_ARRAY_DATA(CTYPE, NAME) ((CTYPE *)(NAME.ptr + NAME.index * NAME.type->Concrete.FixedDim.itemsize))
-#define GMK_FIXED_SCALAR_DATA(CTYPE, NAME) ((CTYPE *)(NAME.ptr))
+#define GMK_SCALAR_DATA(CTYPE, NAME) ((CTYPE *)(NAME.ptr))
+
+#define DEBUGMSG(MSG) printf("debug: " MSG);
+#define DEBUGMSG1(MSG, VALUE) printf("debug: " MSG, VALUE);
+#define DEBUGMSG2(MSG, VALUE1, VALUE2) printf("debug: " MSG, VALUE1, VALUE2);
 
 /* generated kernel functions */
 {kernels-list}
@@ -227,6 +256,21 @@ static int
 }}
 '''
 
+kernel_template = '''
+static int
+{wrapper_name}(xnd_t gmk_stack[], ndt_context_t *gmk_ctx) {{
+  {entering}
+  {declarations-list}
+  {initialize-list}
+  {initialize-start-list}
+  {return_value}{function_name}({arguments-list});
+  {finalize-list}
+  {initialize-end-list}
+  {leaving}
+  return 0;
+}}
+'''
+
 xnd_kernel_template = '''
 static int
 {wrapper_name}(xnd_t gmk_stack[], ndt_context_t *gmk_ctx) {{
@@ -276,7 +320,7 @@ source_template = Template(
     dict(c_source = c_source_template),
     initialize = initialize_source,
     join = {
-        'kernels-list': '',
+        'kernels-list': join_kernels_list,
         'signatures-list': join_signatures_list,
         'typemap_tests-list': ''
     }
@@ -288,30 +332,38 @@ source_template['typemap_tests'] = Template(
     )
     )
 
+wrapper_name = 'gmk_{arraytype}_{kind}_{function_name}'
 source_template['kernels'] = Template(
     dict(kernels = [
-        (kind_is('Xnd'), xnd_kernel_template),
-        (kind_is('C'), c_kernel_template),
-        (kind_is('Fortran'), f_kernel_template),
-        (kind_is('Strided'), strided_kernel_template),
-        (-(kind_is('Xnd')+kind_is('C')+kind_is('Fortran')+kind_is('Strided')), notimpl_kernel_template),
+        #(kind_is('Xnd'), xnd_kernel_template),
+        #(kind_is('C'), c_kernel_template),
+        #(kind_is('Fortran'), f_kernel_template),
+        (kind_is('Strided'), strided_kernel_template, kernel_template),
+        #(-(kind_is('Xnd')+kind_is('C')+kind_is('Fortran')+kind_is('Strided')), notimpl_kernel_template),
     ],
          #signatures = '{{ .name = "{kernel_name}", .sig = "{sig}", .{kind} = {wrapper_name} }}',
          signatures = '{kernel_name}|{sig}|.{kind} = {wrapper_name}',
-         
     ),
     variables = dict(
-        wrapper_name = 'gmk_{kind}_{function_name}',
+        wrapper_name = wrapper_name,
         sig = '{input_utype-list} -> {output_utype-list}',
-        return_value = (-type_is('void'), '{function_name}_return_value_ = ', '')
+        return_value = (-type_is('void'), '{function_name}_return_value_ = ', ''),
+        entering = (debug, 'DEBUGMSG("entering {}\\n");'.format(wrapper_name), ''),
+        leaving = (debug, 'DEBUGMSG("leaving {}\\n");'.format(wrapper_name), ''),
     ),
     initialize = initialize_kernels,
     join = {'declarations-list': '\n  ',
             'initialize-list': join_initialize_list,
+            'initialize-start-list': '\n  ',
+            'initialize-end-list': '\n  ',
             'arguments-list': ', ',
             'finalize-list': '\n  ',
+            'cleanup-list': '\n  ',
             'input_utype-list': ', ',
             'output_utype-list': ', ',
+    },
+    sort = {
+        'initialize-list': sorted_initialize_list,
     }
 )
 
@@ -319,46 +371,62 @@ source_template['kernels']['arguments'] = Template(
     dict(
         declarations = [(is_scalar+is_scalar_ptr,'{ctype} {name};'),
                         (is_array,'{ctype}* {name} = NULL;'),
-                        (is_input, 'const xnd_t gmk_input_{name} = gmk_stack[{input_index}];'),
+                        (is_input, ['const xnd_t gmk_input_{name} = gmk_stack[{input_index}];',
+                                    (debug,'DEBUGMSG1("gmk_input_{name}.type=%s\\n", ndt_as_string(gmk_input_{name}.type, gmk_ctx));'),
+                        ]),
                         (is_output, 'const xnd_t gmk_output_{name} = gmk_stack[{output_index}];'),
         ],
         initialize = 
              [[
                  '/* initialize {name} */',
+
                  (is_input,
                   (has('value'), [
-                      (is_scalar+is_scalar_ptr, '{name} = (xnd_is_na(&gmk_input_{name}) ? {value} : *GMK_FIXED_SCALAR_DATA({ctype}, gmk_input_{name}));'),
+                      (is_scalar+is_scalar_ptr, '{name} = (xnd_is_na(&gmk_input_{name}) ? {value} : *GMK_SCALAR_DATA({ctype}, gmk_input_{name}));'),
                   ],
-                   [
-                       (is_scalar+is_scalar_ptr, '{name} = *GMK_FIXED_SCALAR_DATA({ctype}, gmk_input_{name});'),
+                   [ # no value
+                       (is_scalar+is_scalar_ptr, '{name} = *GMK_SCALAR_DATA({ctype}, gmk_input_{name});'),
                        (is_array*(kind_is('C')+kind_is('Fortran')), '{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});'),
-                       (is_array*(kind_is('Xnd')), '{name} = NOT_IMPL_ENSURE_CONTIGUOUS(GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name}));'),
+                       (is_array*(kind_is('Xnd')), [
+                           Block([(debug, 'DEBUGMSG("xndtools_copy\\n");'),
+                                  '{name} = ({ctype}*)xndtools_copy(&gmk_input_{name}, gmk_ctx);',
+                                  'if ({name} != NULL) {{'
+                           ], 'free({name});}} else {{ return -1; }}'),
+                       ]),
                    ]),
                   (has('value'), [
                       (is_scalar+is_scalar_ptr, '{name} = {value};')
                   ])
                  ),
+                 (debug, 'DEBUGMSG1("  {name}={cfmt}\\n", {name});'),
              ], # statements
              '{name}', (has('depends'),'{depends}', '')], # 3-list is handled by join_initialize            
         arguments = (is_argument,
                      (is_scalar_ptr, '&{name}', '{name}')),
         finalize = (is_output, [
             '/* finalize {name} */',
-            (is_scalar+is_scalar_ptr, '*GMK_FIXED_SCALAR_DATA({ctype}, gmk_output_{name}) = {name};'),
+            (is_scalar+is_scalar_ptr, '*GMK_SCALAR_DATA({ctype}, gmk_output_{name}) = {name};'),
             (is_array*is_input, 'NOTIMPL_INPUT_OUTPUT_ARRAY_{name};'),
+            
         ]),
+        #cleanup = [
+        #    (is_input*(-has('value'))*is_array*kind_is('Xnd'), 'if ({name} != NULL) free({name});'),
+        #],
         input_utype = (has_intent('input'), '{sigdims}{type}'),
         output_utype = (has_intent('output'), '{sigdims}{type}'),
     ),
     variables = dict(
-        sigdims = (has('dimension-list'), '{dimension-list} * ', '... * '),
+        sigdims = (has('dimension-list'), '{ellipses}{dimension-list} * ', '{ellipses}'),
+        
     ),
+    initialize = initialize_argument,
     join = {'dimension-list': join_dimension_list}
 )
 
 source_template['kernels']['arguments']['shape'] = Template(
     dict(
-        dimension = '{dimension}', # computed in initialize_kernels(data)
+        #dimension = '{dimension}', # computed in initialize_kernels(data)
+        dimension = (is_symbolic, '{dimension}', 'var')
     )
 )
 
