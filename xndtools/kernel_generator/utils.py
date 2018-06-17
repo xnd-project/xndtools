@@ -224,6 +224,7 @@ class Prototype(dict):
             ('hide', 'output'), # argument content is modified and
                                 # returned, argument is not shown in
                                 # the input list
+            ('input', 'output') # argument content is modified and copied to output
         ]
         if 'intent' in a:
             new_intent = tuple(sorted(a['intent']+(intent,)))

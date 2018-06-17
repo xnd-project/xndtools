@@ -27,7 +27,7 @@ static int64_t get_fixed_nbytes(const xnd_t* stack_ptr) {
   Copy fixed dims stack (possibly sliced) to a C contiguous destination.
   Return number of bytes copied.
  */
-static int make_copy(char* dest, const xnd_t* stack_ptr) {
+static int make_copy(char* dest, const xnd_t* stack_ptr, bool fortran) {
   int ndim = xnd_ndim(stack_ptr);
   int64_t itemsize = stack_ptr->type->Concrete.FixedDim.itemsize;
   char* ptr0 = stack_ptr->ptr + stack_ptr->index * itemsize;
@@ -35,7 +35,11 @@ static int make_copy(char* dest, const xnd_t* stack_ptr) {
   if (ndim==0) {
     memcpy(dest, ptr0, itemsize); // avoid broadcasting scalar to 1d array   
     return itemsize;
-  } else if (ndt_is_c_contiguous(stack_ptr->type)) {
+  } else if (!fortran && ndt_is_c_contiguous(stack_ptr->type)) {
+    int64_t nbytes = get_fixed_nbytes(stack_ptr);
+    memcpy(dest, ptr0, nbytes);
+    return nbytes;
+  } else if (fortran && ndt_is_f_contiguous(stack_ptr->type)) {
     int64_t nbytes = get_fixed_nbytes(stack_ptr);
     memcpy(dest, ptr0, nbytes);
     return nbytes;
@@ -44,7 +48,7 @@ static int make_copy(char* dest, const xnd_t* stack_ptr) {
     int64_t N1 = 1;
     for (int64_t i=0; i<N; i++) {
       xnd_t row = xnd_fixed_dim_next(stack_ptr, i);
-      N1 = make_copy(dest + N1*i, &row);
+      N1 = make_copy(dest + N1*i, &row, fortran);
       assert(N1>=1);
     }
     return N * N1;
@@ -105,10 +109,29 @@ char* xndtools_copy(const xnd_t* stack_ptr, ndt_context_t *ctx) {
 		   "xndtools_copy: failed to allocate memory");
     return NULL;
   }
-  int64_t tbytes = make_copy(target, stack_ptr);
+  int64_t tbytes = make_copy(target, stack_ptr, 0);
   if (tbytes!=nbytes) {
     ndt_err_format(ctx, NDT_RuntimeError,
 		   "xndtools_copy: mismatch of allocated and copied memory");
+    free(target);
+    target = NULL;
+  }
+  return target;
+}
+
+char* xndtools_fcopy(const xnd_t* stack_ptr, ndt_context_t *ctx) {
+  char* target = NULL;
+  int64_t nbytes = get_fixed_nbytes(stack_ptr);
+  target = (char*)malloc(nbytes);
+  if (target==NULL) {
+    ndt_err_format(ctx, NDT_MemoryError,
+		   "xndtools_fcopy: failed to allocate memory");
+    return NULL;
+  }
+  int64_t tbytes = make_copy(target, stack_ptr, 1);
+  if (tbytes!=nbytes) {
+    ndt_err_format(ctx, NDT_RuntimeError,
+		   "xndtools_fcopy: mismatch of allocated and copied memory");
     free(target);
     target = NULL;
   }

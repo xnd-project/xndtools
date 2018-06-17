@@ -216,6 +216,21 @@ gmk_test_{module_name}_typemaps(ndt_context_t *ctx) {{
     return 0;
 }}
 
+/****************************************************************************/
+/*                       Report wrapper call statistics                     */
+/****************************************************************************/
+
+static void
+gmk_wrapper_stats_{module_name}(void) {{
+    printf("----------------------------------------------------------------\\n");
+    printf(" Module: {module_name}\\n");
+    printf("------+---------------------------------------------------------\\n");
+    printf("Calls | Wrapper name\\n");
+    printf("------+---------------------------------------------------------\\n");
+    {report_wrapper_counter-list}
+    printf("------+---------------------------------------------------------\\n");
+}}
+
 
 static const gm_kernel_init_t {module_name}_kernels[] = {{
   {signatures-list}
@@ -239,7 +254,7 @@ gmk_init_{module_name}_kernels(gm_tbl_t *tbl, ndt_context_t *ctx)
             return -1;
         }}
     }}
-
+    atexit(gmk_wrapper_stats_{module_name});
     return 0;
 }}
 
@@ -256,9 +271,20 @@ typemap_tests_template = '''
     }}
 '''
 
+report_wrapper_counter_template = '''\
+  printf("%5d | {wrapper_name}\\n", {wrapper_name}_counter);
+'''
+
 kernel_template = '''
+/*
+  Kernel: {kernel_name}
+  Signature: "{sig}"
+  External function: {function_name}
+*/
+static int {wrapper_name}_counter = 0;
 static int
 {wrapper_name}(xnd_t gmk_stack[], ndt_context_t *gmk_ctx) {{
+  {wrapper_name}_counter += 1;
   {entering}
   int gmk_success = 0;
   {declarations-list}
@@ -291,7 +317,8 @@ source_template = Template(
     join = {
         'kernels-list': join_kernels_list,
         'signatures-list': join_signatures_list,
-        'typemap_tests-list': ''
+        'typemap_tests-list': '',
+        'report_wrapper_counter-list': ''
     }
 )
 
@@ -301,12 +328,13 @@ source_template['typemap_tests'] = Template(
     )
     )
 
-wrapper_name = 'gmk_{arraytype}_{kind}_{function_name}'
+wrapper_name = 'gmk_{kernel_name}_{ellipses_name}_{arraytype}_{kind}_{function_name}'
 source_template['kernels'] = Template(
     dict(kernels = [
         (strided_kernel_template, kernel_template) * kind_is('Strided'),
     ],
          signatures = '{kernel_name}|{sig}|.{kind} = {wrapper_name}',
+         report_wrapper_counter = report_wrapper_counter_template,
     ),
     variables = dict(
         wrapper_name = wrapper_name,
@@ -347,7 +375,28 @@ source_template['kernels']['arguments'] = Template(
             '{name} = (xnd_is_na(&gmk_input_{name}) ? {value} : *GMK_SCALAR_DATA({ctype}, gmk_input_{name}));...'*(is_input*has('value')*(is_scalar+is_scalar_ptr)),
             '{name} = *GMK_SCALAR_DATA({ctype}, gmk_input_{name});...'*(is_input*-has('value')*(is_scalar+is_scalar_ptr)),
             '...*GMK_SCALAR_DATA({ctype}, gmk_input_{name}) = {name};'*(is_input*is_scalar_ptr),
-            '{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});...'*(is_input*-has('value')*is_array*(kind_is('C')+kind_is('Fortran'))),
+            '''\
+if (ndt_is_c_contiguous(gmk_input_{name}.type))
+  {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
+else
+  {name} = ({ctype}*)xndtools_copy(&gmk_input_{name}, gmk_ctx);
+if ({name} != NULL) {{
+...
+if (!ndt_is_c_contiguous(gmk_input_{name}.type))
+  free({name});
+}} else gmk_success = -1; /* if ({name} != NULL) */
+'''*(is_input*-has('value')*is_array*kind_is('C')),
+            '''\
+if (ndt_is_f_contiguous(gmk_input_{name}.type))
+  {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
+else
+  {name} = ({ctype}*)xndtools_fcopy(&gmk_input_{name}, gmk_ctx);
+if ({name} != NULL) {{
+...
+if (!ndt_is_f_contiguous(gmk_input_{name}.type))
+  free({name});
+}} else gmk_success = -1; /* if ({name} != NULL) */
+'''*(is_input*-has('value')*is_array*kind_is('Fortran')),
             '''\
 {name} = ({ctype}*)xndtools_copy(&gmk_input_{name}, gmk_ctx);
   if ({name} != NULL) {{
@@ -367,6 +416,7 @@ source_template['kernels']['arguments'] = Template(
     ),
     variables = dict(
         sigdims = ('{ellipses}{dimension-list} * ', '{ellipses}')*has('dimension-list'),
+        wrapper_name = wrapper_name,
     ),
     initialize = initialize_argument,
     join = {'dimension-list': join_dimension_list}

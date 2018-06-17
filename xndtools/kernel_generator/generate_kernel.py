@@ -178,6 +178,7 @@ def get_module_data(config_file, package=None):
                                         kernel['ellipses'] = ellipses_ + ' * '
                                 else:
                                     kernel['ellipses'] = ''
+                                kernel['ellipses_name'] = kernel['ellipses'].replace('...','_DOTS_').replace('.','_DOT_').replace('*','_STAR_').replace(' ','')
 
                                 kernels.append(kernel)
                                 #print('  {kernel_name}: using {function_name} for {kind}, ellipses={ellipses!r}'.format_map(kernel))
