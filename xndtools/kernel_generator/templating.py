@@ -44,11 +44,20 @@ class verbosedefaultdict(defaultdict):
 
     def __missing__(self, key):
         if self.verbose:
-            print('{}: not implemented key: {}'.format(self.name, key))
+            if '|' in key:
+                for k_ in key.split('|'):
+                    k_ = k_.strip()
+                    if k_[0]+k_[-1] in ['""',"''"]:
+                        return k_[1:-1]
+                    v = self[k_]
+                    if v:
+                        return v
+            print('templating.verbosedefaultdict:{}: not implemented key: {}'.format(self.name, key))
+            print('  existing keys: {}'.format(','.join(sorted(self))))
             return '/* {!r} not implemented */'.format(key)
         return defaultdict.__missing__(self, key)
 
-def apply_format_map(obj, data):
+def apply_format_map(obj, data, inplace=False):
     """ Apply data to Python objects containing strings.
 
     Parameters
@@ -96,6 +105,8 @@ def apply_format_map(obj, data):
             v = apply_format_map(o, data)
             if v is not None:
                 dct[k] = v
+                if inplace:
+                    data[k] = v
         return dct
 
     if isinstance(obj, Block):
@@ -304,8 +315,8 @@ class Template(object):
                                 elif isinstance(r_, list):
                                     #print(r_)
                                     tmp_data[subkey].extend(r_)
-                                elif isinstance(r_, Block):
-                                    tmp_data[subkey].append(r_.start)
+                                #elif isinstance(r_, Block):
+                                #    tmp_data[subkey].append(r_.start)
                                 else:
                                     raise NotImplementedError(repr((self.name, k,k_,type(r_))))
                         else:
@@ -333,9 +344,10 @@ class Template(object):
                         d[k_ + '-end-list'].insert(0, v_.end)
                     else:
                         d[k].append(v_)
+                else:
+                    d[k]
                 for k_, v_ in d.items():
                     tmp_data[k_] = self._get_join(k_, data)(v_)
-
                 #tmp_data[k] = self._get_join(k, data)(tmp_data[k])
 
         for k, v in parent_data.items():
@@ -344,7 +356,7 @@ class Template(object):
 
         tmp_data.activate(self.name)
 
-        variables = apply_format_map(self.variables, tmp_data)
+        variables = apply_format_map(self.variables, tmp_data, inplace=True)
         
         for k, v in variables.items():
             if k in tmp_data:
@@ -354,7 +366,7 @@ class Template(object):
                           .format(type(self).__name__, self.name, k, v, v1))
             else:
                 tmp_data[k] = v
-
+        
         return apply_format_map(self.template, tmp_data)
 
     def _get_join(self, k, data):

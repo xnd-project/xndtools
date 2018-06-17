@@ -13,6 +13,22 @@ class xnd_data(object): # temporary way of getting data for element-wise equalit
     
 _ = xnd_data()
 
+def _test_no_input():
+    assert _+ m.no_input() == _+ xnd(2018) # segfaults
+
+def test_no_output():
+    x = xnd(123, type='int32')
+    assert m.no_output(x) == None
+    assert _+x == _+xnd(2019, type='int32')
+
+    x = xnd([123], type='1 * int32')
+    assert m.no_output(x) == None
+    assert _+x == _+xnd([2019], type='1 * int32')
+
+    x = xnd([[1,2,3], [4,5,6]], type='2 * 3 * int32')
+    assert m.no_output(x) == None
+    assert _+x == _+xnd([[2019]*3,[2019]*3], type='2 * 3 * int32')
+
 def test_scalar_intent_in():
     assert _+ m.scalar_intent_in(xnd(1.0)) == _+ xnd(2.0)
     assert _+ m.scalar_intent_in(xnd(1, type='int32')) == _+ xnd(2, type='int32')

@@ -15,6 +15,18 @@
 #include <stdio.h>
 #include "example.h"
 
+/*
+   void
+ */
+
+int no_input(void) {
+  return 2018;
+}
+
+void no_output(int* a) {
+  *a = 2019;
+}
+
 /* 
    scalar intent(input)
 */
@@ -33,6 +45,10 @@ int intarr_intent_in(int* a, int n)
 { return a[0] + a[n-1]; }
 double doublearr_intent_in(double* a, int n)
 { return a[0] + a[n-1]; }
+
+/* 
+   array intent(input)
+*/
 
 double doublearr_2d_c_intent_in(double* a, int m, int n)
 { return a[0] + a[n-1]; }

@@ -112,7 +112,11 @@ def get_module_data(config_file, package=None):
 
             debug = bool(f.get('debug', False))
             kinds = split_expression(f.get('kinds', ''))
-            ellipses = split_expression(f.get('ellipses', '')) or default_ellipses
+            ellipses = f.get('ellipses')
+            if ellipses is None:
+                ellipses = default_ellipses
+            else:
+                ellipses = split_expression(ellipses)
             arraytypes = split_expression(f.get('arraytypes', '')) or default_arraytypes
 
             assert set(arraytypes).issubset(['symbolic', 'variable']),repr(arraytypes)
@@ -167,7 +171,7 @@ def get_module_data(config_file, package=None):
                                 kernel = deepcopy(prototype)
                                 kernel['kind'] = kind
                                 kernel['arraytype'] = arraytype
-                                if ellipses_:
+                                if ellipses_ and ellipses_.lower() != 'none':
                                     if ellipses_ == '...' and arraytype == 'variable':
                                         kernel['ellipses'] = 'var' + ellipses_ + ' * '
                                     else:

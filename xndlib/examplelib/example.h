@@ -1,4 +1,6 @@
 
+extern int no_input(void);
+extern void no_output(int* a);
 extern int int_intent_in(int a);
 extern double double_intent_in(double a);
 extern int int_p_intent_in(int* a);

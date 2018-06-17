@@ -150,7 +150,7 @@ class Prototype(dict):
                                ', '.join('{}={}'.format(k, v) for k,v in self.items()))
     
     def __str__(self):
-        return '{type} {name}({_arguments});'.format(_arguments = ', '.join(map(str, self['arguments'])),
+        return '{type} {name}({_arguments});'.format(_arguments = ', '.join(map(str, self['arguments'])) or 'void',
                                                                    _specifiers = (self.get ('specifiers') or ''),
                                                                    _conventions = (self.get ('conventions') or ''),
                                                      **self)

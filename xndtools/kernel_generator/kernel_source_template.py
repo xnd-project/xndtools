@@ -256,13 +256,6 @@ typemap_tests_template = '''
     }}
 '''
 
-notimpl_kernel_template = '''
-static int
-{wrapper_name}(xnd_t gmk_stack[], ndt_context_t *gmk_ctx) {{
-  NOT_IMPLEMENTED_KIND_{kind}_for_{function_name};
-}}
-'''
-
 kernel_template = '''
 static int
 {wrapper_name}(xnd_t gmk_stack[], ndt_context_t *gmk_ctx) {{
@@ -317,7 +310,9 @@ source_template['kernels'] = Template(
     ),
     variables = dict(
         wrapper_name = wrapper_name,
-        sig = '{input_utype-list} -> {output_utype-list}',
+        empty_input_utype = 'void',
+        empty_output_utype = 'void',
+        sig = '{input_utype-list|empty_input_utype} -> {output_utype-list| empty_output_utype}',
         return_value = ('{function_name}_return_value_ = ', '') * -type_is('void'),
         entering = ('DEBUGMSG("entering {}\\n");'.format(wrapper_name),'') * debug,
         leaving = ('DEBUGMSG("leaving {}\\n");'.format(wrapper_name),'') * debug,
@@ -326,6 +321,7 @@ source_template['kernels'] = Template(
     join = {'declarations-list': '\n  ',
             'body-start-list': '\n  ',
             'body-end-list': '\n  ',
+            'body-list': '\n  ',
             'arguments-list': ', ',
             'cleanup-list': '\n  ',
             'input_utype-list': ', ',
@@ -333,6 +329,7 @@ source_template['kernels'] = Template(
     },
     sort = {
         'body-list': sorted_list,
+        #'input_utype-list': postprocess_input_utype_list,
     }
 )
 
@@ -349,13 +346,14 @@ source_template['kernels']['arguments'] = Template(
         body = [[
             '{name} = (xnd_is_na(&gmk_input_{name}) ? {value} : *GMK_SCALAR_DATA({ctype}, gmk_input_{name}));...'*(is_input*has('value')*(is_scalar+is_scalar_ptr)),
             '{name} = *GMK_SCALAR_DATA({ctype}, gmk_input_{name});...'*(is_input*-has('value')*(is_scalar+is_scalar_ptr)),
+            '...*GMK_SCALAR_DATA({ctype}, gmk_input_{name}) = {name};'*(is_input*is_scalar_ptr),
             '{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});...'*(is_input*-has('value')*is_array*(kind_is('C')+kind_is('Fortran'))),
             '''\
 {name} = ({ctype}*)xndtools_copy(&gmk_input_{name}, gmk_ctx);
-if ({name} != NULL) {{
+  if ({name} != NULL) {{
 ...
-  free({name});
-}} else gmk_success = -1;
+    free({name});
+  }} else gmk_success = -1; /* if ({name} != NULL) */
 '''*(is_input*-has('value')*is_array*kind_is('Xnd')),
             '{name} = {value};...'*(-is_input*has('value')*(is_scalar+is_scalar_ptr)),
             '...*GMK_SCALAR_DATA({ctype}, gmk_output_{name}) = {name};' * (is_output*(is_scalar+is_scalar_ptr)),            
@@ -369,7 +367,6 @@ if ({name} != NULL) {{
     ),
     variables = dict(
         sigdims = ('{ellipses}{dimension-list} * ', '{ellipses}')*has('dimension-list'),
-        
     ),
     initialize = initialize_argument,
     join = {'dimension-list': join_dimension_list}
