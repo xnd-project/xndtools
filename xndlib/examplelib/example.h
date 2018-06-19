@@ -14,6 +14,8 @@ extern double doublearr_2d_f_intent_in(double* a, int m, int n);
 extern double doublearr_1d1d_c_intent_in(double** a, int m, int n);
 extern double doublearr_1d1d_f_intent_in(double** a, int m, int n);
 
+extern void doublearr_intent_out(int n, double *a);
+
 extern void i_add_one(int x, int* r);
 extern void l_add_one(long x, long* r);
 extern void d_add_one(double x, double* r);

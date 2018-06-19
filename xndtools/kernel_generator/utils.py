@@ -260,7 +260,17 @@ class Prototype(dict):
                     continue
         return args
                     
-        
+    def get_input_output_arguments(self):
+        input_args, output_args = [], []
+        for a in self['arguments']:
+            #if a.is_intent_input or a.is_intent_inplace:
+            #    input_args.append(a)
+            if a.is_intent_output:
+                output_args.append(a)
+            if not a.is_intent_hide:
+                input_args.append(a)
+        return input_args, output_args
+    
 class ArgumentDeclaration(dict):
 
     def __repr__(self):

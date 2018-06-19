@@ -162,7 +162,11 @@ def get_module_data(config_file, package=None):
                         prototype.set_argument_intent(name, 'hide')
                     for name, shape in shape_map.items():
                         prototype.set_argument_shape(name, shape)
-
+                    input_args, output_args = prototype.get_input_output_arguments()
+                    #prototype['nin'] = len(input_args)
+                    #prototype['nout'] = len(output_args) + (not prototype.get('type')=='void')
+                    prototype['nin'] = 0
+                    prototype['nout'] = 0
                     for arraytype in arraytypes:
                         for kind in kinds_:
                             if arraytype == 'variable' and kind != 'Xnd':

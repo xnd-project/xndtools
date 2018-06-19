@@ -17,6 +17,8 @@ def _test_no_input(): # TODO of gumath
     assert _+ m.no_input() == _+ xnd(2018) # segfaults
 
 def test_no_output():
+    assert m.no_output.kernels
+    
     x = xnd(123, type='int32')
     assert m.no_output(x) == None
     assert _+x == _+xnd(2019, type='int32')
@@ -143,3 +145,23 @@ def test_array_2d_intent_in():
     assert _+ (m.array_2d_intent_in(a[1::2])) == _+ xnd(620.0)
     assert _+ (m.array_2d_intent_in(a[1::2,1::2])) == _+ xnd(62.0)
     
+def test_array_intent_out():
+    n = xnd(4, type='int32')
+    r = m.array_intent_out(n)
+    assert _+r == _+xnd(list(range(4)), type='4 * float64')
+
+    n = xnd([3], type='1 * int32')
+    r = m.array_intent_out(n)
+    assert _+r == _+xnd([list(range(3))], type='1 * 3 * float64')
+
+    n = xnd([3, 3], type='2 * int32')
+    r = m.array_intent_out(n)
+    assert _+r == _+xnd([list(range(3))]*2, type='2 * 3 * float64')
+
+    n = xnd([2, 3], type='2 * int32')
+    r = m.array_intent_out(n)
+    assert _+r == _+xnd([list(range(2))]*2, type='2 * 2 * float64')
+
+    n = xnd([3, 2], type='2 * int32')
+    r = m.array_intent_out(n)
+    assert _+r == _+xnd([[0,1,2],[0,1,0]], type='2 * 3 * float64')

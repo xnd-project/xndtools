@@ -29,15 +29,22 @@ is_scalar_ptr = Predicate(lambda data: data.get('left_modifier')=='*' and not da
 is_array = Predicate(lambda data: data.get('left_modifier')=='*' and data.get('shape') is not None)
 is_argument = Predicate(lambda data: not data['name'].endswith('_return_value_'))
 is_input = has_intent('input')
+is_hide = has_intent('hide')
 #is_hide = -is_input
 is_output = has_intent('output')
-
+need_constraint = Predicate(lambda data: data.get('nout_symbols',0) > 0)
 
 #
 # join functions
 #
 
 def join_kernels_list(lst):
+    """
+    Eliminates dublicated functions
+    """
+    return ''.join(set(lst))
+
+def join_constraints_list(lst):
     """
     Eliminates dublicated functions
     """
@@ -91,14 +98,17 @@ def join_signatures_list(lst):
     sig_kindmap = defaultdict(list)
     
     for signature in lst:
-        name, sig, kind_value = signature.split('|', 3)
-        sig_kindmap[name,sig].append(kind_value)
+        name, sig, nout, kind_value = signature.split('|')
+        sig_kindmap[name,sig,int(nout)].append(kind_value)
 
     lst = []
-    for (name, sig), kind_values in sig_kindmap.items():
-        lst.append('{{ .name = "{}", .sig = "{}", {} }}'.format(name, sig, ', '.join(kind_values)))
+    for (name, sig, nout), kind_values in sig_kindmap.items():
+        if nout>0:
+            lst.append('{{ .name = "{}", .sig = "{}", .constraint = &gmk_{}_constraint, {} }}'.format(name, sig, name, ', '.join(kind_values)))
+        else:
+            lst.append('{{ .name = "{}", .sig = "{}", {} }}'.format(name, sig, ', '.join(kind_values)))
         kinds = [s.split('=')[0].strip()[1:] for s in kind_values]            
-        print('  {}(sig="{}", {})'.format(name, sig, ', '.join(kinds)))
+        print('  {}(sig="{}", {}) [nout={}]'.format(name, sig, ', '.join(kinds), nout))
         
     lst = lst + ['{ .name = NULL, .sig = NULL }']
     return ',\n  '.join(lst)
@@ -122,6 +132,7 @@ def initialize_kernels(data):
     2. Sets argument input_index, output_index.
     3. Extends arguments with function return value.
     4. Initialize various lists.
+    5. Computes nin, nout, symbols for constraint function.
     """    
     dimension_symbols = 'NMLKPQRSVWXYZBCDFGHJAEIOU'
     dims_map = {}
@@ -129,6 +140,9 @@ def initialize_kernels(data):
     input_index = 0
     output_index = 0
     output_args = []
+    in_symbols = []
+    out_symbols = []
+    constraints = []
     for arg in data['arguments']:
         if is_input(arg):
             arg['input_index'] = input_index
@@ -146,8 +160,17 @@ def initialize_kernels(data):
                     dims = dims_map.get(dim['value'])
                     if dims is None:
                         dims = dims_map[dim['value']] = dimension_symbols[len(dims_map)]
+                        if is_output(arg) and is_hide(arg):
+                            constraints.append('gmk_shapes[{}] = {};'.format(len(out_symbols), dim['value']))
+                            out_symbols.append(dims)
+                        else:
+                            in_symbols.append(dims)
                     dim['dimension'] = dims
             arg['nofitems'] = '('+')*('.join([dim['value'] for dim in shape]) +')'
+    data['symbols'] = ', '.join('"'+s+'"' for s in in_symbols + out_symbols)
+    data['nin_symbols'] = len(in_symbols)
+    data['nout_symbols'] = len(out_symbols)
+    data['constraints'] = '\n  '.join(constraints)
     if data['type'] != 'void':
         arg = dict(
             name = '{function_name}_return_value_'.format_map(data),
@@ -201,7 +224,15 @@ c_source_template = '''
 #define DEBUGMSG1(MSG, VALUE) printf("debug: " MSG, VALUE);
 #define DEBUGMSG2(MSG, VALUE1, VALUE2) printf("debug: " MSG, VALUE1, VALUE2);
 
-/* generated kernel functions */
+
+/****************************************************************************/
+/*                       Generated constraints                              */
+/****************************************************************************/
+{constraints-list}
+
+/****************************************************************************/
+/*                       Generated kernels                                  */
+/****************************************************************************/
 {kernels-list}
 
 /****************************************************************************/
@@ -275,6 +306,18 @@ report_wrapper_counter_template = '''\
   printf("%5d | {wrapper_name}\\n", {wrapper_name}_counter);
 '''
 
+constraints_template = '''
+static int 
+gmk_{kernel_name}_constraint_func(int64_t *gmk_shapes, const void *gmk_args, ndt_context_t *gmk_ctx) {{
+  {constraint_declarations-list}
+  printf("gmk_{kernel_name}_constraint_func: nin={nin_symbols}, nout={nout_symbols}\\n"); fflush(stdout);
+  {constraints}
+  return 0;
+}}
+static const ndt_constraint_t 
+gmk_{kernel_name}_constraint = {{ .f = gmk_{kernel_name}_constraint_func, .nin = {nin_symbols}, .nout = {nout_symbols}, .symbols={{ {symbols} }} }};
+'''
+
 kernel_template = '''
 /*
   Kernel: {kernel_name}
@@ -316,6 +359,7 @@ source_template = Template(
     initialize = initialize_source,
     join = {
         'kernels-list': join_kernels_list,
+        'constraints-list': join_constraints_list,
         'signatures-list': join_signatures_list,
         'typemap_tests-list': '',
         'report_wrapper_counter-list': ''
@@ -333,7 +377,10 @@ source_template['kernels'] = Template(
     dict(kernels = [
         (strided_kernel_template, kernel_template) * kind_is('Strided'),
     ],
-         signatures = '{kernel_name}|{sig}|.{kind} = {wrapper_name}',
+         constraints = [
+             constraints_template * need_constraint,
+         ],
+         signatures = '{kernel_name}|{sig}|{nout_symbols}|.{kind} = {wrapper_name}',
          report_wrapper_counter = report_wrapper_counter_template,
     ),
     variables = dict(
@@ -354,6 +401,7 @@ source_template['kernels'] = Template(
             'cleanup-list': '\n  ',
             'input_utype-list': ', ',
             'output_utype-list': ', ',
+            'constraint_declarations-list': ', ',
     },
     sort = {
         'body-list': sorted_list,
@@ -369,6 +417,9 @@ source_template['kernels']['arguments'] = Template(
                          'DEBUGMSG1("gmk_input_{name}.type=%s\\n", ndt_as_string(gmk_input_{name}.type, gmk_ctx));'*debug,
                         ] * is_input,
                         'const xnd_t gmk_output_{name} = gmk_stack[{output_index}];' * is_output,
+        ],
+        constraint_declarations = [
+            '{ctype} {name} = *({ctype}*)(((xnd_t *)gmk_args)[{input_index}].ptr);' * is_input*(is_scalar+is_scalar_ptr),
         ],
         # body generates body-start-list and body-end-list, so all items must contain `...`
         body = [[
@@ -405,7 +456,9 @@ if (!ndt_is_f_contiguous(gmk_input_{name}.type))
   }} else gmk_success = -1; /* if ({name} != NULL) */
 '''*(is_input*-has('value')*is_array*kind_is('Xnd')),
             '{name} = {value};...'*(-is_input*has('value')*(is_scalar+is_scalar_ptr)),
-            '...*GMK_SCALAR_DATA({ctype}, gmk_output_{name}) = {name};' * (is_output*(is_scalar+is_scalar_ptr)),            
+            
+            '...*GMK_SCALAR_DATA({ctype}, gmk_output_{name}) = {name};' * (is_output*(is_scalar+is_scalar_ptr)),
+            '{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name});...' * (is_output*is_array),
         ],
                 '{name}',
                 ('{depends}','') * has('depends')
