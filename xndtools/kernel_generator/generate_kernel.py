@@ -5,11 +5,38 @@
 
 import os
 import sys
+import re
 from glob import glob
 from copy import deepcopy
+from collections import defaultdict
 from .readers import PrototypeReader, load_kernel_config
-from .utils import NormalizedTypeMap, split_expression
+from .utils import NormalizedTypeMap, split_expression, intent_names
 from .kernel_source_template import source_template
+
+def update_argument_maps(expr, depends_map, values_map, shapes_map, arguments):
+    if isinstance(expr, tuple): # (<name>, <value|shape>)
+        name, value = expr
+        for n in re.findall(r'(\b[a-zA-Z_]\w*\b)', value):
+            if n in arguments:
+                if name not in depends_map[n]: # avoid circular dependencies
+                    depends_map[name].add(n)
+    elif '=' in expr: # <name>=<expr>
+        name, value = expr.split('=', 1)
+        name = name.strip()
+        update_argument_maps((name, value), depends_map, values_map, shapes_map, arguments)
+        assert name not in values_map,repr((name, value, values_map[name]))
+        values_map[name] = value
+    elif '(' in expr: # <name>(<shape-list>)
+        i = expr.index('(')
+        if expr[-1] !=')':
+            raise ValueError('cannot determine shape from {!r}. IGNORING.'.format(expr))
+        name = expr[:i].strip()
+        shape = [a.strip() for a in expr[i+1:-1].split(',')]
+        shapes_map[name] = shape
+    else: # <name>
+        name = expr
+    return name
+
 
 def apply_typemap(prototype, typemap, typemap_tests):
     orig_type = prototype['type']
@@ -120,24 +147,12 @@ def get_module_data(config_file, package=None):
             arraytypes = split_expression(f.get('arraytypes', '')) or default_arraytypes
 
             assert set(arraytypes).issubset(['symbolic', 'variable']),repr(arraytypes)
-            
-            # set argument intents
-            input_arguments = split_expression(f.get('input_arguments', ''))
-            output_arguments = split_expression(f.get('output_arguments', ''))
-            inplace_arguments = split_expression(f.get('inplace_arguments', ''))
-            hide_arguments = split_expression(f.get('hide_arguments', ''))
-                    
-            # resolve argument shapes
-            shape_map = {}
-            
-            for name_shape in split_expression(f.get('dimension', '')):
-                i = name_shape.index('(')
-                if i==-1 or name_shape[-1] !=')':
-                    print('cannot determine shape from {!r}. IGNORING.'.format(name_shape))
-                    continue
-                name = name_shape[:i].strip()
-                shape = [a.strip() for a in name_shape[i+1:-1].split(',')]
-                shape_map[name] = shape
+
+            # get argument intents and shape information
+            intent_arguments = {}
+            for intent_name in intent_names:
+                intent_arguments[intent_name] = split_expression(f.get(intent_name+'_arguments', ''))
+            argument_dimensions = split_expression(f.get('dimension', ''))
 
             # propagate prototypes to kernels
             for prototypes_, kinds_ in [
@@ -152,21 +167,33 @@ def get_module_data(config_file, package=None):
                     prototype['debug'] = debug
                     apply_typemap(prototype, typemap, typemap_tests)
 
-                    for name in input_arguments:
-                        prototype.set_argument_intent(name, 'input')
-                    for name in inplace_arguments:
-                        prototype.set_argument_intent(name, 'inplace')
-                    for name in output_arguments:
-                        prototype.set_argument_intent(name, 'output')
-                    for name in hide_arguments:
-                        prototype.set_argument_intent(name, 'hide')
-                    for name, shape in shape_map.items():
-                        prototype.set_argument_shape(name, shape)
+                    depends_map = defaultdict(set)
+                    values_map = {}
+                    shapes_map = {}
+                    arguments = list(prototype['argument_map'])
+                    
+                    for intent_name in intent_arguments:
+                        for name in intent_arguments[intent_name]:
+                            name = update_argument_maps(name, depends_map, values_map, shapes_map, arguments)
+                            prototype.set_argument_intent(name, intent_name)
+
+                    for name_shape in argument_dimensions:
+                        name = update_argument_maps(name_shape, depends_map, values_map, shapes_map, arguments)
+                            
+                    for name, shapes in shapes_map.items():
+                        for shape in shapes:
+                            update_argument_maps((name, shape), depends_map, values_map, shapes_map, arguments)
+                        prototype.set_argument_shape(name, shapes)
+
+                    for name, depends in depends_map.items():
+                        prototype.set_argument_depends(name, depends)
+                        
+                    for name, value in values_map.items():
+                        prototype.set_argument_value(name, value)
+
+                    print(kernel_name, depends_map)
+                        
                     input_args, output_args = prototype.get_input_output_arguments()
-                    #prototype['nin'] = len(input_args)
-                    #prototype['nout'] = len(output_args) + (not prototype.get('type')=='void')
-                    prototype['nin'] = 0
-                    prototype['nout'] = 0
                     for arraytype in arraytypes:
                         for kind in kinds_:
                             if arraytype == 'variable' and kind != 'Xnd':
@@ -183,7 +210,6 @@ def get_module_data(config_file, package=None):
                                 else:
                                     kernel['ellipses'] = ''
                                 kernel['ellipses_name'] = kernel['ellipses'].replace('...','_DOTS_').replace('.','_DOT_').replace('*','_STAR_').replace(' ','')
-
                                 kernels.append(kernel)
                                 #print('  {kernel_name}: using {function_name} for {kind}, ellipses={ellipses!r}'.format_map(kernel))
 

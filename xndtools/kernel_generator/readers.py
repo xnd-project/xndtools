@@ -221,7 +221,7 @@ class PrototypeReader(object):
             
             # resolve arguments
             args = func_attrs['arguments'] = []
-            arg_map = func_attrs['argument_map'] = {}
+            arg_map = func_attrs['argument_map'] = {} # <argument name>: <arguments index>
             if arguments in ['', 'void']:
                 pass
             else:

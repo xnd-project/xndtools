@@ -28,11 +28,22 @@ is_scalar = Predicate(lambda data: not (data.get('left_modifier') or data.get('r
 is_scalar_ptr = Predicate(lambda data: data.get('left_modifier')=='*' and not data.get('right_modifier') and data.get('shape') is None)
 is_array = Predicate(lambda data: data.get('left_modifier')=='*' and data.get('shape') is not None)
 is_argument = Predicate(lambda data: not data['name'].endswith('_return_value_'))
-is_input = has_intent('input')
-is_hide = has_intent('hide')
-#is_hide = -is_input
-is_output = has_intent('output')
 need_constraint = Predicate(lambda data: data.get('nout_symbols',0) > 0)
+
+# See utils.py Prototype.set_argument_intent for interpretation:
+is_input = has_intent('input')*-has_intent('output')
+is_inout = has_intent('inout')*-has_intent('output')
+is_inplace = has_intent('inplace')*-has_intent('output')
+is_hide = has_intent('hide')
+is_output = has_intent('output')*-(has_intent('input')+has_intent('inout')+has_intent('inplace'))
+is_input_output = has_intent('input') * has_intent('output')
+is_inout_output = has_intent('inout') * has_intent('output')
+is_inplace_output = has_intent('inplace') * has_intent('output')
+
+is_inany = has_intent('input')+has_intent('inout')+has_intent('inplace')
+is_outany = has_intent('output')
+
+# TODO: C and Fortran contiguous arguments and return values
 
 #
 # join functions
@@ -144,10 +155,10 @@ def initialize_kernels(data):
     out_symbols = []
     constraints = []
     for arg in data['arguments']:
-        if is_input(arg):
+        if (is_inany)(arg):
             arg['input_index'] = input_index
             input_index += 1
-        if is_output(arg):
+        if (is_outany)(arg):
             arg['output_index'] = output_index
             output_index += 1
             output_args.append(arg)
@@ -160,8 +171,9 @@ def initialize_kernels(data):
                     dims = dims_map.get(dim['value'])
                     if dims is None:
                         dims = dims_map[dim['value']] = dimension_symbols[len(dims_map)]
-                        if is_output(arg) and is_hide(arg):
-                            constraints.append('gmk_shapes[{}] = {};'.format(len(out_symbols), dim['value']))
+                        if is_outany(arg):
+                            if dim['value'] in arg['depends']: # TODO: when dim['value'] is expression
+                                constraints.append('gmk_shapes[{}] = {};'.format(len(out_symbols), dim['value']))
                             out_symbols.append(dims)
                         else:
                             in_symbols.append(dims)
@@ -310,7 +322,6 @@ constraints_template = '''
 static int 
 gmk_{kernel_name}_constraint_func(int64_t *gmk_shapes, const void *gmk_args, ndt_context_t *gmk_ctx) {{
   {constraint_declarations-list}
-  printf("gmk_{kernel_name}_constraint_func: nin={nin_symbols}, nout={nout_symbols}\\n"); fflush(stdout);
   {constraints}
   return 0;
 }}
@@ -411,22 +422,48 @@ source_template['kernels'] = Template(
 
 source_template['kernels']['arguments'] = Template(
     dict(
-        declarations = ['{ctype} {name};' * (is_scalar+is_scalar_ptr),
-                        '{ctype}* {name} = NULL;'*is_array,
-                        ['const xnd_t gmk_input_{name} = gmk_stack[{input_index}];',
-                         'DEBUGMSG1("gmk_input_{name}.type=%s\\n", ndt_as_string(gmk_input_{name}.type, gmk_ctx));'*debug,
-                        ] * is_input,
-                        'const xnd_t gmk_output_{name} = gmk_stack[{output_index}];' * is_output,
+        declarations = [
+            '/* {name} intent: {intent} */',
+            '{ctype} {name};' * (is_scalar+is_scalar_ptr),
+            '{ctype}* {name} = NULL;'*is_array,
+            ['const xnd_t gmk_input_{name} = gmk_stack[{input_index}];',
+             'DEBUGMSG1("gmk_input_{name}.type=%s\\n", ndt_as_string(gmk_input_{name}.type, gmk_ctx));'*debug,
+            ] * (is_inany),
+            'const xnd_t gmk_output_{name} = gmk_stack[{output_index}];' * (is_outany),
         ],
         constraint_declarations = [
-            '{ctype} {name} = *({ctype}*)(((xnd_t *)gmk_args)[{input_index}].ptr);' * is_input*(is_scalar+is_scalar_ptr),
+            # constraints can use scalar arguments to initialize shapes of output arrays
+            '{ctype} {name} = *({ctype}*)(((xnd_t *)gmk_args)[{input_index}].ptr);' * is_inany*(is_scalar+is_scalar_ptr),
         ],
         # body generates body-start-list and body-end-list, so all items must contain `...`
         body = [[
-            '{name} = (xnd_is_na(&gmk_input_{name}) ? {value} : *GMK_SCALAR_DATA({ctype}, gmk_input_{name}));...'*(is_input*has('value')*(is_scalar+is_scalar_ptr)),
-            '{name} = *GMK_SCALAR_DATA({ctype}, gmk_input_{name});...'*(is_input*-has('value')*(is_scalar+is_scalar_ptr)),
-            '...*GMK_SCALAR_DATA({ctype}, gmk_input_{name}) = {name};'*(is_input*is_scalar_ptr),
-            '''\
+            #'{name} = (xnd_is_na(&gmk_input_{name}) ? {value} : *GMK_SCALAR_DATA({ctype}, gmk_input_{name}));...'*(is_input*has('value')*(is_scalar+is_scalar_ptr)),
+            #'{name} = *GMK_SCALAR_DATA({ctype}, gmk_input_{name});...'*(is_input*-has('value')*(is_scalar+is_scalar_ptr)),
+            #'...*GMK_SCALAR_DATA({ctype}, gmk_input_{name}) = {name};'*(is_input*is_scalar_ptr),
+
+            #'{name} = {value};...'*(-is_input*has('value')*(is_scalar+is_scalar_ptr)),
+
+            # Scalars:
+            [
+                [
+                    '{name} = {value};...'*(is_hide+is_output),
+                    '{name} = (xnd_is_na(&gmk_input_{name}) ? {value} : *GMK_SCALAR_DATA({ctype}, gmk_input_{name}));...'*(is_inany),
+                    '''NOTIMPLEMENTED_INPUT_OUTPUT_VALUE...''' * is_input_output,
+                    '''NOTIMPLEMENTED_INOUT_OUTPUT_VALUE...''' * is_inout_output,
+                    '''NOTIMPLEMENTED_INPLACE_OUTPUT_VALUE...''' * is_inplace_output,
+                ] * has('value'),
+                [
+                    '{name} = *GMK_SCALAR_DATA({ctype}, gmk_input_{name});...' * (is_inany),
+                ] * -has('value'),
+                [
+                    '...*GMK_SCALAR_DATA({ctype}, gmk_input_{name}) = {name};' * (is_inplace+is_inout+is_inplace_output+is_inout_output),
+                    '...*GMK_SCALAR_DATA({ctype}, gmk_output_{name}) = {name};' * is_outany,
+                ]
+            ] * (is_scalar+is_scalar_ptr),
+
+            # Arrays:
+            [
+                '''\
 if (ndt_is_c_contiguous(gmk_input_{name}.type))
   {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
 else
@@ -436,8 +473,8 @@ if ({name} != NULL) {{
 if (!ndt_is_c_contiguous(gmk_input_{name}.type))
   free({name});
 }} else gmk_success = -1; /* if ({name} != NULL) */
-'''*(is_input*-has('value')*is_array*kind_is('C')),
-            '''\
+'''*(is_input*kind_is('C')),
+                '''\
 if (ndt_is_f_contiguous(gmk_input_{name}.type))
   {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
 else
@@ -447,25 +484,61 @@ if ({name} != NULL) {{
 if (!ndt_is_f_contiguous(gmk_input_{name}.type))
   free({name});
 }} else gmk_success = -1; /* if ({name} != NULL) */
-'''*(is_input*-has('value')*is_array*kind_is('Fortran')),
-            '''\
+'''*(is_input*kind_is('Fortran')),
+                '''NOTIMPLEMENTED_INPUT_STRIDED...''' * is_input*kind_is('Strided'),
+                '''\
 {name} = ({ctype}*)xndtools_copy(&gmk_input_{name}, gmk_ctx);
-  if ({name} != NULL) {{
+if ({name} != NULL) {{
 ...
-    free({name});
-  }} else gmk_success = -1; /* if ({name} != NULL) */
-'''*(is_input*-has('value')*is_array*kind_is('Xnd')),
-            '{name} = {value};...'*(-is_input*has('value')*(is_scalar+is_scalar_ptr)),
-            
-            '...*GMK_SCALAR_DATA({ctype}, gmk_output_{name}) = {name};' * (is_output*(is_scalar+is_scalar_ptr)),
-            '{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name});...' * (is_output*is_array),
+  free({name});
+}} else gmk_success = -1; /* if ({name} != NULL) */
+'''*(is_input*kind_is('Xnd')),
+
+                '''NOTIMPLEMENTED_INOUT_C...''' * is_inout*kind_is('C'),
+                '''NOTIMPLEMENTED_INOUT_F...''' * is_inout*kind_is('Fortran'),
+                '''NOTIMPLEMENTED_INOUT_STRIDED...''' * is_inout*kind_is('Strided'),
+                '''NOTIMPLEMENTED_INOUT_XND...''' * is_inout*kind_is('Xnd'),
+
+                '''NOTIMPLEMENTED_INPLACE_C...''' * is_inplace*kind_is('C'),
+                '''NOTIMPLEMENTED_INPLACE_F...''' * is_inplace*kind_is('Fortran'),
+                '''NOTIMPLEMENTED_INPLACE_STRIDED...''' * is_inplace*kind_is('Strided'),
+                '''NOTIMPLEMENTED_INPLACE_XND...''' * is_inplace*kind_is('Xnd'),
+
+
+                '''NOTIMPLEMENTED_INPUT_OUTPUT_C...''' * is_input_output*kind_is('C'),
+                '''NOTIMPLEMENTED_INPUT_OUTPUT_F...''' * is_input_output*kind_is('Fortran'),
+                '''NOTIMPLEMENTED_INPUT_OUTPUT_STRIDED...''' * is_input_output*kind_is('Strided'),
+                '''{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name});
+xndtools_cpy((char*){name}, &gmk_input_{name}, ndt_is_f_contiguous(gmk_output_{name}.type));...''' * is_input_output*kind_is('Xnd'),
+
+                '''NOTIMPLEMENTED_INPLACE_OUTPUT_C...''' * is_inplace_output*kind_is('C'),
+                '''NOTIMPLEMENTED_INPLACE_OUTPUT_F...''' * is_inplace_output*kind_is('Fortran'),
+                '''NOTIMPLEMENTED_INPLACE_OUTPUT_STRIDED...''' * is_inplace_output*kind_is('Strided'),
+                '''NOTIMPLEMENTED_INPLACE_OUTPUT_XND...''' * is_inplace_output*kind_is('Xnd'),
+
+                '''NOTIMPLEMENTED_INOUT_OUTPUT_C...''' * is_inout_output*kind_is('C'),
+                '''NOTIMPLEMENTED_INOUT_OUTPUT_F...''' * is_inout_output*kind_is('Fortran'),
+                '''NOTIMPLEMENTED_INOUT_OUTPUT_STRIDED...''' * is_inout_output*kind_is('Strided'),
+                '''NOTIMPLEMENTED_INOUT_OUTPUT_XND...''' * is_inout_output*kind_is('Xnd'),
+                                
+                '''NOTIMPLEMENTED_OUTPUT_C...''' * is_output*kind_is('C'),
+                '''NOTIMPLEMENTED_OUTPUT_F...''' * is_output*kind_is('Fortran'),
+                '''NOTIMPLEMENTED_OUTPUT_STRIDED...''' * is_output*kind_is('Strided'),
+                '{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name});...' * is_output*kind_is('Xnd'), # todo F-contiguous output
+
+                '''NOTIMPLEMENTED_HIDE_C...''' * is_hide*kind_is('C'),
+                '''NOTIMPLEMENTED_HIDE_F...''' * is_hide*kind_is('Fortran'),
+                '''NOTIMPLEMENTED_HIDE_STRIDED...''' * is_hide*kind_is('Strided'),
+                '''NOTIMPLEMENTED_HIDE_XND...''' * is_hide*kind_is('Xnd'),
+                
+            ]*is_array*-has('value'),
         ],
                 '{name}',
                 ('{depends}','') * has('depends')
         ], # 3-list is handled by sorted_list
         arguments = ('&{name}', '{name}') * is_scalar_ptr * is_argument,
-        input_utype = '{sigdims}{type}' * is_input,
-        output_utype = '{sigdims}{type}' * is_output,
+        input_utype = '{sigdims}{type}' * is_inany,
+        output_utype = '{sigdims}{type}' * is_outany,
     ),
     variables = dict(
         sigdims = ('{ellipses}{dimension-list} * ', '{ellipses}')*has('dimension-list'),

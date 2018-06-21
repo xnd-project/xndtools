@@ -3,6 +3,32 @@ import re
 import ctypes
 
 
+intent_names = ['input', 'inplace', 'inout', 'output', 'hide']
+
+supported_intent_lst = [
+    ('input',),   # argument contains input data that is not modified,
+                  # non-contiguous data is copied
+    ('inout',),   # argument contains input data that can be modified
+                  # inplace, non-contiguous data triggers ValueError
+    ('inplace',), # argument contains input data that can be modified
+                  # inplace, non-contigous data is copied from and to
+                  # input
+    ('hide',),    # argument is removed from the list of function
+                  # arguments. The argument contains input data that
+                  # is uniquely determined by other input arguments
+                  # (such as shape), or the argument is a cache-like
+                  # that content can be ignored
+    ('output',),   # argument content is modified and returned,
+                   # argument is not shown in the input list (implicit
+                   # hide), always contiguous
+    ('input',   'output'), #
+    ('inout',   'output'), #
+    ('inplace', 'output'), #
+    ('hide',    'output'), # same as output            
+]
+
+#TODO: c and fortran intents
+
 class NormalizedTypeMap(dict):
     """C type specification map to normalized type name.
 
@@ -188,17 +214,19 @@ class Prototype(dict):
             a['value'] = value
         else:
             a['value'] = value
+
     def set_argument_depends(self, name, depends):
         a = self.get_argument(name)
         a_depends = a.get('depends')
         if a_depends is None:
-            a['depends'] = depends
+            a['depends'] = set(depends)
         else:
             a_depends.update(depends)
             
     def set_argument_intent(self, name, intent):
         depends = set()
         if '=' in name:
+            assert 0
             variables = [a['name'] for a in self['arguments']]
             name, value = name.split('=', 1)
             name = name.strip()
@@ -210,39 +238,30 @@ class Prototype(dict):
             self.set_argument_value(name, value.strip())
 
         a = self.get_argument(name)
-        supported_intent = [
-            ('input',),   # argument contains input data that is not modified
-            ('inplace',), # argument contains input data that is modified inplace
-            #('output',),  # argument content is modified inplace and returned, [ndtypes not supporting this]
-            ('hide',),    # argument is removed from the list of
-                          # function arguments. The argument contains
-                          # input data that is uniquely determined by
-                          # other input data, or the argument is
-                          # cache-like that content can be ignored, or
-                          # the argument will contain calculation
-                          # results.
-            ('hide', 'output'), # argument content is modified and
-                                # returned, argument is not shown in
-                                # the input list
-            ('input', 'output') # argument content is modified and copied to output
-        ]
+
+        if isinstance(intent, set):
+            intent = tuple(sorted(intent))
+        elif isinstance(intent, str):
+            intent = intent,
+        
         if 'intent' in a:
-            new_intent = tuple(sorted(a['intent']+(intent,)))
-            if new_intent in supported_intent:
-                a['intent'] = new_intent
-            else:
-                print('{}.set_argument_shape:WARNING:re argument {!r}: intent {!r} not supported. IGNORING.'.format(type(self).__name__, name, new_intent))
+            intent = tuple(sorted(a['intent']+intent))
+        if intent == ('hide', 'output'):
+            intent = ('output',)
+        if intent in supported_intent_lst:
+            a['intent'] = intent
         else:
-            a['intent'] = (intent,)
+            raise ValueError('{}.set_argument_shape:intent {!r} of argument {!r} is not supported.'.format(type(self).__name__, intent, name))
 
     def set_argument_shape(self, name, shape):
         a = self.get_argument(name)
         a['shape'] = [dict(value=dim) for dim in shape]
 
-    def get_sorted_arguments(self):
+    def get_sorted_arguments(self): # NOT USED
         """ Return a list of argument names sorted in the order of their mutual dependecies.
         Independent arguments come first.
         """
+        raise 0
         d = dict([(a['name'], a.get('depends', set())) for a in self['arguments']])
         args = [n for n in d if not d[n]]
         n_ = None

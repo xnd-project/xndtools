@@ -165,3 +165,13 @@ def test_array_intent_out():
     n = xnd([3, 2], type='2 * int32')
     r = m.array_intent_out(n)
     assert _+r == _+xnd([[0,1,2],[0,1,0]], type='2 * 3 * float64')
+
+def test_array_intent_in_out():
+    x = xnd([1,2,3,4], type='4 * float64')
+    r = m.array_intent_in_out(x)
+    assert _+x == _+xnd(list(range(1,5)), type='4 * float64')
+    assert _+r == _+xnd(list(range(4)), type='4 * float64')
+
+    x = xnd([[1,2,3,4], [5,6,7,8]], type='2 * 4 * float64')
+    r = m.array_intent_in_out(x)
+    assert _+r == _+xnd([list(range(4))]*2, type='2 * 4 * float64')

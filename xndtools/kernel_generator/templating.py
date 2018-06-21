@@ -172,6 +172,11 @@ class When(object):
     def __init__(self, predicate):
         self.predicate = predicate
 
+    def __mul__(self, other):
+        if isinstance(other, Predicate):
+            return When(self.predicate * other)
+        return NotImplemented
+        
     def __rmul__(self, other):
         if isinstance(other, str):
             if '...' in other:
