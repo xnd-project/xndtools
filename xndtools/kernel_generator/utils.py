@@ -393,3 +393,65 @@ def split_expression(expr):
     if k==-1:
         return [expr]
     return [expr[:k].rstrip()] + split_expression(expr[k+1:])
+
+def prettify(source, target='c', skip_emptylines=True):
+    """ Simple prettier of source code.
+    """
+    if target=='c':
+        intent_str = '    '
+        intent_count = 0
+        next_count = 0
+        lines = []
+        stmt_match = re.compile(r'\A(if|while|else)\b[^;]*\Z').match
+        for orig_line in source.splitlines():
+            line = orig_line.strip() if intent_count else orig_line
+            if skip_emptylines and (not line and intent_count):
+                continue
+            start = line.count('{')
+            stop = line.count('}')
+            diff = start - stop
+            if next_count and diff:
+                next_count = 0
+            if diff >= 0:
+                lines.append(intent_str * (intent_count+next_count) + line)
+                intent_count += diff
+            else:
+                intent_count += diff
+                lines.append(intent_str * (intent_count+next_count) + line)
+            next_count = 0
+            if stmt_match(line) and not diff:
+                next_count = 1
+        assert intent_count==0
+        return '\n'.join(lines)
+    return source
+
+
+def test_prettify():
+    source = '''
+foo () {
+  a = 1;
+  (for i=0; i++; i<10) {
+    if (i>=1)
+{
+    if (i<5) 
+     a += 1;
+}
+    }
+}
+'''
+    result = prettify(source)
+    expect = '''
+foo () {
+    a = 1;
+    (for i=0; i++; i<10) {
+        if (i>=1)
+        {
+            if (i<5)
+                a += 1;
+        }
+    }
+}'''
+    assert result == expect,repr((result, expect))
+
+if __name__ == '__main__':
+    test_prettify()

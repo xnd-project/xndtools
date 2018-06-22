@@ -10,7 +10,7 @@ from glob import glob
 from copy import deepcopy
 from collections import defaultdict
 from .readers import PrototypeReader, load_kernel_config
-from .utils import NormalizedTypeMap, split_expression, intent_names
+from .utils import NormalizedTypeMap, split_expression, intent_names, prettify
 from .kernel_source_template import source_template
 
 def update_argument_maps(expr, depends_map, values_map, shapes_map, arguments):
@@ -71,7 +71,7 @@ def generate_kernel(config_file,
         else:
             own_target_file = False
 
-    target_file.write(source['c_source'])
+    target_file.write(prettify(source['c_source'], target='c'))
     if own_target_file:
         target_file.close()
     return dict(config_file = config_file,
@@ -191,9 +191,7 @@ def get_module_data(config_file, package=None):
                     for name, value in values_map.items():
                         prototype.set_argument_value(name, value)
 
-                    print(kernel_name, depends_map)
-                        
-                    input_args, output_args = prototype.get_input_output_arguments()
+                    #input_args, output_args = prototype.get_input_output_arguments()
                     for arraytype in arraytypes:
                         for kind in kinds_:
                             if arraytype == 'variable' and kind != 'Xnd':
