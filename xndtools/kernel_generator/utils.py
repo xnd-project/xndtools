@@ -403,7 +403,17 @@ def prettify(source, target='c', skip_emptylines=True):
         next_count = 0
         lines = []
         stmt_match = re.compile(r'\A(if|while|else)\b[^;]*\Z').match
+        comment_start_match = re.compile(r'\A\s*/[*]').match
+        comment_end_match = re.compile(r'.*?[*]/\s*\Z').match
+        comment = False
         for orig_line in source.splitlines():
+            cstart = comment_start_match(orig_line)
+            cend = comment_end_match(orig_line)
+            if comment or cstart:
+                comment = not cend
+                lines.append(orig_line)
+                continue
+            
             line = orig_line.strip() if intent_count else orig_line
             if skip_emptylines and (not line and intent_count):
                 continue

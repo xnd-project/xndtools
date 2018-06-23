@@ -128,6 +128,30 @@ def join_dimension_list(lst):
     # Prepends ellipses dimension
     return ' * '.join(lst)
 
+def join_short_doc_list(lst):
+    kernels = defaultdict(list)
+    kinds = defaultdict(list)
+    for line in lst:
+        name, sig, kind = line.split('@:@', 2)
+        name = name.strip()
+        sig = sig.strip()
+        if sig not in kernels[name]:
+            kernels[name].append(sig)
+        kinds[name,sig].append(kind.strip())
+    lines = []
+    for name, signatures in kernels.items():
+        sig_lines = []
+        fmt = '{{:{}s}} [{{}}]'.format(max(70,max(map(len, signatures))))
+        for sig in signatures:
+            sig_lines.append(fmt.format(sig, ', '.join(kinds[name, sig])))
+        lines.append('    {}:\n      {}'.format(name, '\n      '.join(sig_lines+[''])))
+    return '\n'.join(lines)
+
+def join_warnings_list(lst):
+    if lst:
+        print('{1}\nCollected warnings:\n    {0}\n{1}'.format('\n    '.join(lst), '-'*60))
+    return '\n'.join(lst)
+
 #
 # initialize functions
 #
@@ -197,12 +221,13 @@ def initialize_kernels(data):
         output_args.append(arg)
     for arg in output_args:
         arg['output_index'] += input_index
-        
-    # must be empty lists:
+
+    # To suppress warnings when no input or no output, must be empty lists:
     data['arguments-list'] = []
     #data['initialize-list'] = []
     data['input_utype-list'] = []
     data['output_utype-list'] = []
+    data['body-list'] = []
 
 def initialize_argument(data):
     if is_scalar(data):
@@ -214,7 +239,16 @@ def initialize_argument(data):
 # Template strings
 #
                     
-c_source_template = '''
+c_source_template = '''\
+/*
+  This file is auto-generated.
+
+  Module: {module_name}
+  Kernels:
+
+{short_doc-list}
+
+ */
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
@@ -266,7 +300,7 @@ gmk_test_{module_name}_typemaps(ndt_context_t *ctx) {{
 static void
 gmk_wrapper_stats_{module_name}(void) {{
     printf("----------------------------------------------------------------\\n");
-    printf(" Module: {module_name}\\n");
+    printf("Module: {module_name}\\n");
     printf("------+---------------------------------------------------------\\n");
     printf("Calls | Wrapper name\\n");
     printf("------+---------------------------------------------------------\\n");
@@ -320,13 +354,15 @@ report_wrapper_counter_template = '''\
 
 constraints_template = '''
 static int 
-gmk_{kernel_name}_constraint_func(int64_t *gmk_shapes, const void *gmk_args, ndt_context_t *gmk_ctx) {{
+{constraint_name}(int64_t *gmk_shapes, const void *gmk_args, ndt_context_t *gmk_ctx) {{
+  {constraint_entering}
   {constraint_declarations-list}
   {constraints}
+  {constraint_leaving}
   return 0;
 }}
 static const ndt_constraint_t 
-gmk_{kernel_name}_constraint = {{ .f = gmk_{kernel_name}_constraint_func, .nin = {nin_symbols}, .nout = {nout_symbols}, .symbols={{ {symbols} }} }};
+gmk_{kernel_name}_constraint = {{ .f = {constraint_name}, .nin = {nin_symbols}, .nout = {nout_symbols}, .symbols={{ {symbols} }} }};
 '''
 
 kernel_template = '''
@@ -334,6 +370,8 @@ kernel_template = '''
   Kernel: {kernel_name}
   Signature: "{sig}"
   External function: {function_name}
+  Configuration:
+{kernel_repr}
 */
 static int {wrapper_name}_counter = 0;
 static int
@@ -373,7 +411,12 @@ source_template = Template(
         'constraints-list': join_constraints_list,
         'signatures-list': join_signatures_list,
         'typemap_tests-list': '',
-        'report_wrapper_counter-list': ''
+        'report_wrapper_counter-list': '',
+        'short_doc-list': join_short_doc_list,
+        'constraint_entering-list': '\n', # not used, to suppress warnigns
+        'constraint_leaving-list': '\n',  # not used, to suppress warnigns
+        #'body-end-list': '\n', # not used, to suppress warnigns
+        #'body-start-list': '\n',  # not used, to suppress warnigns
     }
 )
 
@@ -384,6 +427,7 @@ source_template['typemap_tests'] = Template(
     )
 
 wrapper_name = 'gmk_{kernel_name}_{ellipses_name}_{arraytype}_{kind}_{function_name}'
+constraint_name = 'gmk_{kernel_name}_constraint_func'
 source_template['kernels'] = Template(
     dict(kernels = [
         (strided_kernel_template, kernel_template) * kind_is('Strided'),
@@ -391,11 +435,18 @@ source_template['kernels'] = Template(
          constraints = [
              constraints_template * need_constraint,
          ],
+         constraint_entering = 'DEBUGMSG("Entering {constraint_name}\\n");' * debug,
+         constraint_leaving = 'DEBUGMSG("Leaving {constraint_name}\\n");' * debug,
+         
          signatures = '{kernel_name}|{sig}|{nout_symbols}|.{kind} = {wrapper_name}',
          report_wrapper_counter = report_wrapper_counter_template,
+         short_doc = '{kernel_name} - "{oneline_description}" @:@ {sig} @:@ {kind}',
+         entering = 'DEBUGMSG("Entering {wrapper_name}\\n");' * debug,
+         leaving = 'DEBUGMSG("Leaving {wrapper_name}\\n");' * debug,
     ),
     variables = dict(
         wrapper_name = wrapper_name,
+        constraint_name = constraint_name,
         empty_input_utype = 'void',
         empty_output_utype = 'void',
         sig = '{input_utype-list|empty_input_utype} -> {output_utype-list| empty_output_utype}',
@@ -413,6 +464,7 @@ source_template['kernels'] = Template(
             'input_utype-list': ', ',
             'output_utype-list': ', ',
             'constraint_declarations-list': ', ',
+            'warnings-list': join_warnings_list,
     },
     sort = {
         'body-list': sorted_list,
@@ -423,9 +475,9 @@ source_template['kernels'] = Template(
 source_template['kernels']['arguments'] = Template(
     dict(
         declarations = [
-            '/* {name} intent: {intent} */',
             '{ctype} {name};' * (is_scalar+is_scalar_ptr),
             '{ctype}* {name} = NULL;'*is_array,
+
             ['const xnd_t gmk_input_{name} = gmk_stack[{input_index}];',
              'DEBUGMSG1("gmk_input_{name}.type=%s\\n", ndt_as_string(gmk_input_{name}.type, gmk_ctx));'*debug,
             ] * (is_inany),
@@ -435,14 +487,11 @@ source_template['kernels']['arguments'] = Template(
             # constraints can use scalar arguments to initialize shapes of output arrays
             '{ctype} {name} = *({ctype}*)(((xnd_t *)gmk_args)[{input_index}].ptr);' * is_inany*(is_scalar+is_scalar_ptr),
         ],
+        warnings = [
+            'inplace|inout has not effect: C scalar cannot be changed in-situ (in {kernel_name})' * (is_inplace+is_inout+is_inplace_output+is_inout_output)*is_scalar,
+        ],
         # body generates body-start-list and body-end-list, so all items must contain `...`
         body = [[
-            #'{name} = (xnd_is_na(&gmk_input_{name}) ? {value} : *GMK_SCALAR_DATA({ctype}, gmk_input_{name}));...'*(is_input*has('value')*(is_scalar+is_scalar_ptr)),
-            #'{name} = *GMK_SCALAR_DATA({ctype}, gmk_input_{name});...'*(is_input*-has('value')*(is_scalar+is_scalar_ptr)),
-            #'...*GMK_SCALAR_DATA({ctype}, gmk_input_{name}) = {name};'*(is_input*is_scalar_ptr),
-
-            #'{name} = {value};...'*(-is_input*has('value')*(is_scalar+is_scalar_ptr)),
-
             # Scalars:
             [
                 [
@@ -456,7 +505,7 @@ source_template['kernels']['arguments'] = Template(
                     '{name} = *GMK_SCALAR_DATA({ctype}, gmk_input_{name});...' * (is_inany),
                 ] * -has('value'),
                 [
-                    '...*GMK_SCALAR_DATA({ctype}, gmk_input_{name}) = {name};' * (is_inplace+is_inout+is_inplace_output+is_inout_output),
+                    '...*GMK_SCALAR_DATA({ctype}, gmk_input_{name}) = {name};' * (is_inplace+is_inout+is_inplace_output+is_inout_output)*is_scalar_ptr,
                     '...*GMK_SCALAR_DATA({ctype}, gmk_output_{name}) = {name};' * is_outany,
                 ]
             ] * (is_scalar+is_scalar_ptr),

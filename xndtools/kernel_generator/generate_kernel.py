@@ -9,6 +9,7 @@ import re
 from glob import glob
 from copy import deepcopy
 from collections import defaultdict
+import pprint
 from .readers import PrototypeReader, load_kernel_config
 from .utils import NormalizedTypeMap, split_expression, intent_names, prettify
 from .kernel_source_template import source_template
@@ -86,7 +87,8 @@ def get_module_data(config_file, package=None):
     sources = list(glob(os.path.join(xndtools_datadir, '*.c')))
     kernels = []
     typemap_tests = set()
-    
+
+    default_debug_value = False
     default_kinds_value = 'Xnd' # TODO: move to command line options
     default_ellipses_value = '...'
     default_arraytypes_value = 'symbolic'
@@ -117,6 +119,7 @@ def get_module_data(config_file, package=None):
                     continue
                 sources.append(line)
 
+            default_debug = split_expression(current_module.get('debug', default_debug_value))
             default_kinds = split_expression(current_module.get('kinds', default_kinds_value))
             default_ellipses = split_expression(current_module.get('ellipses', default_ellipses_value))
             default_arraytypes = split_expression(current_module.get('arraytypes', default_arraytypes_value))
@@ -137,7 +140,7 @@ def get_module_data(config_file, package=None):
                 print('get_module_data: no prototypes|prototypes_C|prototypes_Fortran defined in [KERNEL {}]'.format(kernel_name))
                 continue
 
-            debug = bool(f.get('debug', False))
+            debug = bool(f.get('debug', default_debug))
             kinds = split_expression(f.get('kinds', ''))
             ellipses = f.get('ellipses')
             if ellipses is None:
@@ -165,6 +168,7 @@ def get_module_data(config_file, package=None):
                     prototype['description'] = description
                     prototype['function_name'] = prototype.pop('name')
                     prototype['debug'] = debug
+                    prototype['oneline_description'] = prototype['description'].lstrip().split('\n',1)[0] or '<description not specified>'
                     apply_typemap(prototype, typemap, typemap_tests)
 
                     depends_map = defaultdict(set)
@@ -208,8 +212,8 @@ def get_module_data(config_file, package=None):
                                 else:
                                     kernel['ellipses'] = ''
                                 kernel['ellipses_name'] = kernel['ellipses'].replace('...','_DOTS_').replace('.','_DOT_').replace('*','_STAR_').replace(' ','')
+                                kernel['kernel_repr'] = pprint.pformat(kernel, indent=4, compact=True)
                                 kernels.append(kernel)
-                                #print('  {kernel_name}: using {function_name} for {kind}, ellipses={ellipses!r}'.format_map(kernel))
 
     l = []
     for h in current_module.get('includes','').split():

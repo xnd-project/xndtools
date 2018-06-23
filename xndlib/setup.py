@@ -26,7 +26,7 @@ GUMATH_ROOT = os.path.dirname(gumath.__file__)
 CONDA_PREFIX=os.environ['CONDA_PREFIX']
 MKLROOT = CONDA_PREFIX
 
-kernel_configuration_files = ['example-kernels.cfg']
+kernel_configuration_files = ['example-kernels.cfg', 'test_scalar-kernels.cfg'][1:]
 
 ext_modules = []
 for cfg in kernel_configuration_files:

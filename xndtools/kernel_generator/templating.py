@@ -52,6 +52,8 @@ class verbosedefaultdict(defaultdict):
                     v = self[k_]
                     if v:
                         return v
+            if key.endswith('-start-list') or key.endswith('-end-list'):
+                return ''
             print('templating.verbosedefaultdict:{}: not implemented key: {}'.format(self.name, key))
             print('  existing keys: {}'.format(','.join(sorted(self))))
             return '/* {!r} not implemented */'.format(key)
