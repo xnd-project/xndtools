@@ -43,6 +43,9 @@ def apply_typemap(prototype, typemap, typemap_tests):
     orig_type = prototype['type']
     prototype['type'] = normal_type = typemap(orig_type)
     prototype['ctype'] = c_type = normal_type + '_t'
+    zero = typemap.get_zero(normal_type)
+    if zero is not None:
+        prototype['ctype_zero'] = zero
     if orig_type != normal_type:
         typemap_tests.add((orig_type, c_type))
     
@@ -50,6 +53,9 @@ def apply_typemap(prototype, typemap, typemap_tests):
         orig_type = arg['type']
         arg['type'] = normal_type = typemap(orig_type)
         arg['ctype'] = c_type = normal_type + '_t'
+        zero = typemap.get_zero(normal_type)
+        if zero is not None:
+            arg['ctype_zero'] = zero
         if orig_type != normal_type:
             typemap_tests.add((orig_type, c_type))
     

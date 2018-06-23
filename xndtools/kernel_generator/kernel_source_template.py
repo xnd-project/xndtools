@@ -475,10 +475,11 @@ source_template['kernels'] = Template(
 source_template['kernels']['arguments'] = Template(
     dict(
         declarations = [
-            '{ctype} {name};' * (is_scalar+is_scalar_ptr),
+            (('{ctype} {name} = {ctype_zero};','{ctype} {name};')*has('ctype_zero') )* (is_scalar+is_scalar_ptr),
             '{ctype}* {name} = NULL;'*is_array,
 
-            ['const xnd_t gmk_input_{name} = gmk_stack[{input_index}];',
+            [('xnd_t gmk_input_{name} = gmk_stack[{input_index}];',
+              'const xnd_t gmk_input_{name} = gmk_stack[{input_index}];')*(has('value')*(is_inplace+is_inout+is_inplace_output+is_inout_output)),
              'DEBUGMSG1("gmk_input_{name}.type=%s\\n", ndt_as_string(gmk_input_{name}.type, gmk_ctx));'*debug,
             ] * (is_inany),
             'const xnd_t gmk_output_{name} = gmk_stack[{output_index}];' * (is_outany),
@@ -496,10 +497,24 @@ source_template['kernels']['arguments'] = Template(
             [
                 [
                     '{name} = {value};...'*(is_hide+is_output),
-                    '{name} = (xnd_is_na(&gmk_input_{name}) ? {value} : *GMK_SCALAR_DATA({ctype}, gmk_input_{name}));...'*(is_inany),
-                    '''NOTIMPLEMENTED_INPUT_OUTPUT_VALUE...''' * is_input_output,
-                    '''NOTIMPLEMENTED_INOUT_OUTPUT_VALUE...''' * is_inout_output,
-                    '''NOTIMPLEMENTED_INPLACE_OUTPUT_VALUE...''' * is_inplace_output,
+                    #'{name} = (xnd_is_na(&gmk_input_{name}) ? {value} : *GMK_SCALAR_DATA({ctype}, gmk_input_{name}));...'*(is_inany),
+'''
+if (xnd_is_na(&gmk_input_{name}))
+  {name} = {value};
+else
+  {name} = *GMK_SCALAR_DATA({ctype}, gmk_input_{name});
+...
+''' * (is_input+is_input_output),
+'''
+if (xnd_is_na(&gmk_input_{name}))
+{{
+  xnd_set_valid(&gmk_input_{name});
+  {name} = *GMK_SCALAR_DATA({ctype}, gmk_input_{name}) = {value};
+}}
+else
+  {name} = *GMK_SCALAR_DATA({ctype}, gmk_input_{name});
+...
+''' * (is_inplace+is_inout+is_inplace_output+is_inout_output),
                 ] * has('value'),
                 [
                     '{name} = *GMK_SCALAR_DATA({ctype}, gmk_input_{name});...' * (is_inany),
@@ -586,7 +601,7 @@ xndtools_cpy((char*){name}, &gmk_input_{name}, ndt_is_f_contiguous(gmk_output_{n
                 ('{depends}','') * has('depends')
         ], # 3-list is handled by sorted_list
         arguments = ('&{name}', '{name}') * is_scalar_ptr * is_argument,
-        input_utype = '{sigdims}{type}' * is_inany,
+        input_utype = ('?{sigdims}{type}' * is_inany,'{sigdims}{type}' * is_inany)*has('value'),
         output_utype = '{sigdims}{type}' * is_outany,
     ),
     variables = dict(

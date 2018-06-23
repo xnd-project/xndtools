@@ -68,6 +68,14 @@ class NormalizedTypeMap(dict):
                          uint8 = 'uint8', uint16 = 'uint16', uint32 = 'uint32', uint64 = 'uint64', uint128 = 'uint128',
                          complex32 = 'complex32', complex64 = 'complex64', complex128 = 'complex128', complex256 = 'complex256', complex512 = 'complex512',
                          float16 = 'float16', float32 = 'float32', float64 = 'float64', float128 = 'float128'))
+
+        self.default_zero_map = dict(void = None,
+                                     bool = 'false',
+                                     int8 = '0', int16 = '0', int32 = '0', int64 = '0l', int128 = '0ll',
+                                     uint8 = '0', uint16 = '0', uint32 = '0u', uint64 = '0ul', uint128 = '0ull',
+                                     complex32 = '{0.0f, 0.0f}', complex64 = '{0.0f, 0.0f}', complex128 = '{0.0, 0.0}', complex256 = '{0.0lf, 0.0lf}', complex512 = '{0.0llf, 0.0llf}',
+                                     float16 = '0.0f', float32 = '0.0f', float64 = '0.0', float128 = '0.0lf', float256 = '0.0llf')
+        
         self.strip_left = strip_left
         self.strip_right = strip_right
 
@@ -86,6 +94,16 @@ class NormalizedTypeMap(dict):
             if v in self:
                 v = self[v]
             self[k] = v
+
+    def get_zero(self, ctype):
+        """ Return zero constant value (as string) for given C type specification.
+        """
+        ntype = self(ctype)
+        zero = self.default_zero_map.get(ntype, 'FAILURE')
+        if zero == 'FAILURE':
+            print ('{}({!r}): failed to find zero constant value, returning None.'.format (type (self).__name__, ntype))
+            zero = None
+        return zero
         
     def __call__(self, ctype):
         """Return normalized type of given C type specification.
