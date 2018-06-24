@@ -6,7 +6,7 @@
 from collections import defaultdict
 from copy import deepcopy
 from .templating import Template, Predicate, flatten
-
+from . import utils
 #
 # Predicate functions
 #
@@ -31,17 +31,18 @@ is_argument = Predicate(lambda data: not data['name'].endswith('_return_value_')
 need_constraint = Predicate(lambda data: data.get('nout_symbols',0) > 0)
 
 # See utils.py Prototype.set_argument_intent for interpretation:
-is_input = has_intent('input')*-has_intent('output')
-is_inout = has_intent('inout')*-has_intent('output')
-is_inplace = has_intent('inplace')*-has_intent('output')
-is_hide = has_intent('hide')
-is_output = has_intent('output')*-(has_intent('input')+has_intent('inout')+has_intent('inplace'))
-is_input_output = has_intent('input') * has_intent('output')
-is_inout_output = has_intent('inout') * has_intent('output')
-is_inplace_output = has_intent('inplace') * has_intent('output')
 
-is_inany = has_intent('input')+has_intent('inout')+has_intent('inplace')
-is_outany = has_intent('output')
+is_input = Predicate(utils.is_intent_input)
+is_inplace = Predicate(utils.is_intent_inplace)
+is_inout = Predicate(utils.is_intent_inout)
+is_output = Predicate(utils.is_intent_output)
+is_hide = Predicate(utils.is_intent_hide)
+is_input_output = Predicate(utils.is_intent_input_output)
+is_inplace_output = Predicate(utils.is_intent_inplace_output)
+is_inout_output = Predicate(utils.is_intent_inout_output)
+is_inany = Predicate(utils.is_intent_inany)
+is_outany = Predicate(utils.is_intent_outany)
+
 
 # TODO: C and Fortran contiguous arguments and return values
 
@@ -53,13 +54,13 @@ def join_kernels_list(lst):
     """
     Eliminates dublicated functions
     """
-    return ''.join(set(lst))
+    return ''.join(sorted(set(lst)))
 
 def join_constraints_list(lst):
     """
     Eliminates dublicated functions
     """
-    return ''.join(set(lst))
+    return ''.join(sorted(set(lst)))
 
 def sorted_list(lst):
     """
@@ -148,6 +149,7 @@ def join_short_doc_list(lst):
     return '\n'.join(lines)
 
 def join_warnings_list(lst):
+    lst = [line for line in lst if line]
     if lst:
         print('{1}\nCollected warnings:\n    {0}\n{1}'.format('\n    '.join(lst), '-'*60))
     return '\n'.join(lst)
@@ -349,6 +351,7 @@ typemap_tests_template = '''
 '''
 
 report_wrapper_counter_template = '''\
+if (!{wrapper_name}_counter)
   printf("%5d | {wrapper_name}\\n", {wrapper_name}_counter);
 '''
 
@@ -415,8 +418,7 @@ source_template = Template(
         'short_doc-list': join_short_doc_list,
         'constraint_entering-list': '\n', # not used, to suppress warnigns
         'constraint_leaving-list': '\n',  # not used, to suppress warnigns
-        #'body-end-list': '\n', # not used, to suppress warnigns
-        #'body-start-list': '\n',  # not used, to suppress warnigns
+        'all_warnings-list': join_warnings_list,
     }
 )
 
@@ -443,6 +445,7 @@ source_template['kernels'] = Template(
          short_doc = '{kernel_name} - "{oneline_description}" @:@ {sig} @:@ {kind}',
          entering = 'DEBUGMSG("Entering {wrapper_name}\\n");' * debug,
          leaving = 'DEBUGMSG("Leaving {wrapper_name}\\n");' * debug,
+         all_warnings = '{warnings-list}',
     ),
     variables = dict(
         wrapper_name = wrapper_name,
@@ -464,7 +467,7 @@ source_template['kernels'] = Template(
             'input_utype-list': ', ',
             'output_utype-list': ', ',
             'constraint_declarations-list': ', ',
-            'warnings-list': join_warnings_list,
+            'warnings-list': '\n',
     },
     sort = {
         'body-list': sorted_list,
@@ -601,7 +604,7 @@ xndtools_cpy((char*){name}, &gmk_input_{name}, ndt_is_f_contiguous(gmk_output_{n
                 ('{depends}','') * has('depends')
         ], # 3-list is handled by sorted_list
         arguments = ('&{name}', '{name}') * is_scalar_ptr * is_argument,
-        input_utype = ('?{sigdims}{type}' * is_inany,'{sigdims}{type}' * is_inany)*has('value'),
+        input_utype = ('{sigdims}?{type}' * is_inany,'{sigdims}{type}' * is_inany)*has('value'),
         output_utype = '{sigdims}{type}' * is_outany,
     ),
     variables = dict(

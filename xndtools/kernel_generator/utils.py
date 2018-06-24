@@ -29,6 +29,19 @@ supported_intent_lst = [
 
 #TODO: c and fortran intents
 
+def is_intent_inany(data): return data.get('intent',()) in [('input',),('inplace',),('inout',),('input','output'),('inplace','output'),('inout','output')]
+def is_intent_outany(data): return data.get('intent',()) in [('output',),('input','output'),('inplace','output'),('inout','output')]
+def is_intent_input(data): return data.get('intent') == ('input',)
+def is_intent_inplace(data): return data.get('intent') == ('inplace',)
+def is_intent_inout(data): return data.get('intent') == ('inout',)
+def is_intent_output(data): return data.get('intent') == ('output',)
+def is_intent_hide(data): return data.get('intent') == ('hide',)
+def is_intent_input_output(data): return data.get('intent') == ('input','output')
+def is_intent_inplace_output(data): return data.get('intent') == ('inplace','output')
+def is_intent_inout_output(data): return data.get('intent') == ('inout','output')
+
+
+
 class NormalizedTypeMap(dict):
     """C type specification map to normalized type name.
 
@@ -243,17 +256,6 @@ class Prototype(dict):
             
     def set_argument_intent(self, name, intent):
         depends = set()
-        if '=' in name:
-            assert 0
-            variables = [a['name'] for a in self['arguments']]
-            name, value = name.split('=', 1)
-            name = name.strip()
-            for n in re.findall(r'(\b[a-zA-Z_]\w*\b)', value):
-                if n in self['argument_map']:
-                    depends.add(n)
-            if depends:
-                self.set_argument_depends(name, depends)
-            self.set_argument_value(name, value.strip())
 
         a = self.get_argument(name)
 
@@ -275,7 +277,7 @@ class Prototype(dict):
         a = self.get_argument(name)
         a['shape'] = [dict(value=dim) for dim in shape]
 
-    def get_sorted_arguments(self): # NOT USED
+    def __get_sorted_arguments(self): # NOT USED
         """ Return a list of argument names sorted in the order of their mutual dependecies.
         Independent arguments come first.
         """
@@ -300,14 +302,14 @@ class Prototype(dict):
     def get_input_output_arguments(self):
         input_args, output_args = [], []
         for a in self['arguments']:
-            #if a.is_intent_input or a.is_intent_inplace:
-            #    input_args.append(a)
-            if a.is_intent_output:
+            if a.is_intent_outany:
                 output_args.append(a)
-            if not a.is_intent_hide:
+            if a.is_intent_inany:
                 input_args.append(a)
         return input_args, output_args
-    
+
+
+
 class ArgumentDeclaration(dict):
 
     def __repr__(self):
@@ -335,16 +337,17 @@ class ArgumentDeclaration(dict):
     def is_array(self):
         return self.get('left_modifier')=='*' and self.get('shape')
 
-    @property
-    def is_intent_input(self): return self.get('intent') == ('input',)
-    @property
-    def is_intent_inplace(self): return self.get('intent') == ('inplace',)
-    @property
-    def is_intent_output(self): return self.get('intent') == ('output',)
-    @property
-    def is_intent_hide(self): return self.get('intent') == ('hide',)
-    @property
-    def is_intent_hide_output(self): return self.get('intent') == ('hide','output')
+    
+    is_intent_inany = property(is_intent_inany)
+    is_intent_outany = property(is_intent_outany)
+    is_intent_input = property(is_intent_input)
+    is_intent_inplace = property(is_intent_inplace)
+    is_intent_inout = property(is_intent_inout)
+    is_intent_output = property(is_intent_output)
+    is_intent_hide = property(is_intent_hide)
+    is_intent_input_output = property(is_intent_input_output)
+    is_intent_inplace_output = property(is_intent_inplace_output)
+    is_intent_inout_output = property(is_intent_inout_output)
     
     def signature(self, typemap, kind = 'ndtypes', prototype = None):
         if kind == 'ndtypes':

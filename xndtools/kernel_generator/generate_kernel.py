@@ -125,7 +125,7 @@ def get_module_data(config_file, package=None):
                     continue
                 sources.append(line)
 
-            default_debug = split_expression(current_module.get('debug', default_debug_value))
+            default_debug = bool(current_module.get('debug', default_debug_value))
             default_kinds = split_expression(current_module.get('kinds', default_kinds_value))
             default_ellipses = split_expression(current_module.get('ellipses', default_ellipses_value))
             default_arraytypes = split_expression(current_module.get('arraytypes', default_arraytypes_value))
@@ -189,19 +189,25 @@ def get_module_data(config_file, package=None):
 
                     for name_shape in argument_dimensions:
                         name = update_argument_maps(name_shape, depends_map, values_map, shapes_map, arguments)
-                            
+
+                    max_rank = 0
                     for name, shapes in shapes_map.items():
                         for shape in shapes:
                             update_argument_maps((name, shape), depends_map, values_map, shapes_map, arguments)
                         prototype.set_argument_shape(name, shapes)
-
+                        arg = prototype.get_argument(name)
+                        if not arg.is_intent_hide:
+                            max_rank = max(max_rank, len(shapes))
+                    prototype['max_rank'] = max_rank
+                    
                     for name, depends in depends_map.items():
                         prototype.set_argument_depends(name, depends)
                         
                     for name, value in values_map.items():
                         prototype.set_argument_value(name, value)
 
-                    #input_args, output_args = prototype.get_input_output_arguments()
+                    input_args, output_args = prototype.get_input_output_arguments()
+
                     for arraytype in arraytypes:
                         for kind in kinds_:
                             if arraytype == 'variable' and kind != 'Xnd':
@@ -211,6 +217,8 @@ def get_module_data(config_file, package=None):
                                 kernel['kind'] = kind
                                 kernel['arraytype'] = arraytype
                                 if ellipses_ and ellipses_.lower() != 'none':
+                                    if not input_args: # `void -> ... * T` not allowed
+                                        continue
                                     if ellipses_ == '...' and arraytype == 'variable':
                                         kernel['ellipses'] = 'var' + ellipses_ + ' * '
                                     else:
