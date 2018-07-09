@@ -1,0 +1,92 @@
+#!/usr/bin/env python
+'''
+structinfo_generator scans C header files for struct definitions
+and generates the following functions for all struct members:
+1. getters: <member typedef> get_<struct name>_<member name>(void *ptr);
+2. sizeof: size_t sizeof_<struct_name>(void);
+3. offsetof: size_t offsetof_<struct_name>_<member name>(void); 
+'''
+# Author: Pearu Peterson
+# Created: July 2018
+
+import os
+from xndtools import c_utils
+
+def show_description(args):
+    print(__doc__)
+    print('For detailed usage, run:\n\n  {} -h\n'.format(__file__))
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description = __doc__,
+                                     prog = 'structinfo_generator')
+    parser.add_argument('--version', action='version', version='%(prog)s 1.0')
+    parser.set_defaults(func=show_description)
+
+    parser.add_argument('-I', '--include-dir',
+                        default=[], action='append',
+                        help='Specify include directory')
+    parser.add_argument('include',
+                        help = 'Specify header file to be scanned for struct definitions')
+    parser.add_argument('-o','--output',
+                        help = 'Specify path to C source file where the functions will be generated'
+    )
+    parser.set_defaults(func=generate_target)
+    args = parser.parse_args()
+    args.func(args)
+
+def flatten_unions(items):
+    for item in items:
+        if item[0]=='union':
+            for i in flatten_unions(item[1]):
+                yield i
+        elif item[0]=='struct':            
+            yield (item[0], list(flatten_unions(item[1])), item[2])
+        else:
+            yield item
+
+def flatten_structs(items):
+    for item in items:
+        if item[0]=='struct':
+            members, name = item[1:]
+            for (typedef, names) in flatten_structs(members):
+                yield typedef, (name,)+names
+        else:
+            typedef, name, size = item
+            if size is not None:
+                yield typedef+'*', (name,)
+            else:
+                yield typedef, (name,)
+    
+def generate_target(args):
+    include_dirs = args.include_dir or []
+    include = args.include
+    target = args.output
+    if target is None:
+        target = os.path.basename(include).replace('.','_') + '_structinfo.c'
+        orig_include = include
+    
+    include = c_utils.find_include(include, include_dirs)
+    source = open(include).read()
+    source = c_utils.resolve_includes(source, include_dirs=include_dirs)
+    structs = c_utils.get_structs(source)
+    lines = [
+        '/* This file is generated using structinfo_generator from the xndtools project */',
+        '#include "{}"'.format(args.include)]
+    for typename, items in structs.items():
+        if isinstance(items, str):
+            print('SKIPPING:', typename, items)
+            continue
+        lines.append('extern size_t sizeof_{typename}(void){{ return sizeof({typename}); }}'.format_map(locals()))
+        for typedef,names in flatten_structs(flatten_unions(items)):
+            membernames = '_'.join(names)
+            memberattrs = '.'.join(names)
+            lines.append('extern {typedef} get_{typename}_{membernames}(void* ptr){{ return (({typename}*)ptr)->{memberattrs}; }}'.format_map(locals()))
+            lines.append('extern size_t offsetof_{typename}_{membernames}(void){{ return offsetof({typename}, {memberattrs}); }}'.format_map(locals()))
+    f = open(target, 'w')
+    f.write('\n'.join(lines))
+    f.close()
+    print('Created {}'.format(target))
+    
+if __name__ == '__main__':
+    main()
