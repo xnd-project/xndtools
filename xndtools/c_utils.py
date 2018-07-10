@@ -36,7 +36,7 @@ def resolve_includes(source, include_dirs = [], skip_includes = []):
       Source with resolved includes.
 
     """
-    include_re = r'#include\s*[<"](\w+[\w.]*)[>"]'
+    include_re = r'#include\s*[<"]([^"<>]+)[>"]'
     def include_repl(m):
         include_file = find_include(m.group(1), include_dirs)
         if not os.path.isfile(include_file) or include_file in skip_includes:
@@ -101,10 +101,12 @@ def _get_block_items(block, blocks): # helper function for get_structs
     rname_re = r'\w*[a-zA-Z_]' # reversed name
     rname_match = re.compile(rname_re).match
     struct_match = re.compile(r'struct\s*(@@@\d+@@@)\s*([a-zA-Z_]\w*)').match
-    
     items = []
     for stmt in block[1:-1].split(';')[:-1]:
+
         stmt = stmt.strip()
+        if stmt.startswith('PyObject_HEAD'):
+            stmt = stmt.split(None, 1)[1]
         m = union_match(stmt)
         if m is not None:
             key,  = m.groups()
@@ -120,19 +122,26 @@ def _get_block_items(block, blocks): # helper function for get_structs
             i = stmt.index('[')
             size = stmt[i+1:-1].strip()
             stmt = stmt[:i]
-        name = rname_match(stmt[::-1]).group(0)[::-1]
+        name = rname_match(stmt[::-1]).group(0)[::-1].strip()
         assert name is not None, repr(stmt)
         typespec = stmt[:-len(name)].strip()
         if typespec.startswith('alignas'):
             typespec = typespec.split(' ', 1)[1]
         items.append((typespec,name,size))
-
     return items
 
+def expand_extern_C(source, blocks):
+    extern_C_re = r'extern\s+["]C["]\s*(@@@\d+@@@)'
+    def repl(m):
+        key, = m.groups()
+        return 'extern "C" ' + blocks[key]
+    return re.sub(extern_C_re, repl, source, flags=re.MULTILINE | re.DOTALL)
+    
 def get_structs(source):
     """ Return a dictionary of C struct definitions.
     """
     source, blocks = get_c_blocks(source)
+    source = expand_extern_C(source, blocks)
     typedef_struct_re = r'typedef\s+struct\s*(@@@\d+@@@|[a-zA-Z_]\w*\s)\s*([a-zA-Z_]\w*)\s*;'
     struct_re = r'struct\s+([a-zA-Z_]\w*)\s*(@@@\d+@@@)\s*;'
     structs = {}

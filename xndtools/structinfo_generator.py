@@ -63,20 +63,23 @@ PyInit_{modulename}(void) {{ return PyModule_Create(&{modulename}module); }}
 
 def generate(args):
     include_dirs = args.include_dir or []
-    include = args.include
+    include = args.include[0]
     target = args.output
     if target is None:
         target = os.path.basename(include).replace('.','_') + '_structinfo.c'
         orig_include = include
     modulename = os.path.splitext(os.path.basename(target))[0]
-        
-    include = c_utils.find_include(include, include_dirs)
-    source = open(include).read()
+
+    source = []
+    for include in args.include:
+        include = c_utils.find_include(include, include_dirs)
+        source.append('#include "{}"'.format(include))
+    source = '\n'.join(source)
     source = c_utils.resolve_includes(source, include_dirs=include_dirs)
     structs = c_utils.get_structs(source)
-    lines = [
-        '/* This file is generated using structinfo_generator from the xndtools project */',
-        '#include "{}"'.format(args.include)]
+    lines = ['/* This file is generated using structinfo_generator from the xndtools project */']
+    for include in args.include:
+        lines.append('#include "{}"'.format(include))
     ext_functions = []
     ext_methods = []
     for typename, items in structs.items():

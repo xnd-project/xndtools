@@ -25,7 +25,7 @@ def main():
     parser.add_argument('-I', '--include-dir',
                         default=[], action='append',
                         help='Specify include directory')
-    parser.add_argument('include',
+    parser.add_argument('include', nargs='+',
                         help = 'Specify header file to be scanned for struct definitions')
     parser.add_argument('-o','--output',
                         help = 'Specify path to C source file where the functions will be generated'
