@@ -24,9 +24,18 @@ def flatten_structs(items):
             else:
                 yield typedef, (name,)
 
-pyc_sizeof_template = 'static PyObject *pyc_sizeof_{typename}(PyObject *self, PyObject *args) {{ return PyLong_FromLong((long)(sizeof_{typename}())); }}'
 pyc_noarg_template = 'static PyObject *pyc_{fname}(PyObject *self, PyObject *args) {{ return PyLong_FromLong((long)({fname}())); }}'
-pyc_method_template = '{{"{fname}", (PyCFunction)pyc_{fname}, METH_VARARGS, NULL}},'
+pyc_noarg_doc_template = '"{fname}() -> int"'
+pyc_arg_template = '''static PyObject *pyc_{fname}(PyObject *self, PyObject *args) {{
+  PyObject* ptr=NULL;
+  if (!PyArg_UnpackTuple(args, "{typename}", 0, 1, &ptr))
+    return NULL;
+  if (PyCapsule_CheckExact(ptr))
+    return PyCapsule_New({fname}(PyCapsule_GetPointer(ptr, "{typename}")), "{fname}", NULL);
+  return NULL;
+}}'''
+pyc_arg_doc_template = '"{fname}(< pointer to {typename} >) -> < pointer to {typename}->{memberattrs} >"'
+pyc_method_template = '{{"{fname}", (PyCFunction)pyc_{fname}, METH_VARARGS, {fdoc}}},'
 
 pyc_module_template = '''
 #ifdef PYTHON_MODULE
@@ -42,7 +51,7 @@ static PyMethodDef {modulename}_methods[] = {{
 static struct PyModuleDef {modulename}module = {{
   PyModuleDef_HEAD_INIT,
   "{modulename}",   /* name of module */
-  NULL, /* module documentation */
+  NULL,             /* module documentation */
   -1,
   {modulename}_methods
 }};
@@ -75,6 +84,7 @@ def generate(args):
             print('SKIPPING:', typename, items)
             continue
         fname = 'sizeof_{typename}'.format_map(locals())
+        fdoc = pyc_noarg_doc_template.format_map(locals())
         lines.append('extern size_t {fname}(void){{ return sizeof({typename}); }}'.format_map(locals()))
         ext_functions.append(pyc_noarg_template.format_map(locals()))
         ext_methods.append(pyc_method_template.format_map(locals()))
@@ -82,10 +92,15 @@ def generate(args):
         for typedef,names in flatten_structs(flatten_unions(items)):
             membernames = '_'.join(names)
             memberattrs = '.'.join(names)
+            
             fname = 'get_{typename}_{membernames}'.format_map(locals())
-            lines.append('extern {typedef} {fname}(void* ptr){{ return (({typename}*)ptr)->{memberattrs}; }}'.format_map(locals()))
-            # TODO: python wrapper to get_... functions.
+            fdoc = pyc_arg_doc_template.format_map(locals())
+            lines.append('extern /* {typedef} */ void * {fname}(void* ptr){{ return &((({typename}*)ptr)->{memberattrs}); }}'.format_map(locals()))
+            ext_functions.append(pyc_arg_template.format_map(locals()))
+            ext_methods.append(pyc_method_template.format_map(locals()))
+
             fname = 'offsetof_{typename}_{membernames}'.format_map(locals())
+            fdoc = pyc_noarg_doc_template.format_map(locals())
             lines.append('extern size_t {fname}(void){{ return offsetof({typename}, {memberattrs}); }}'.format_map(locals()))
             ext_functions.append(pyc_noarg_template.format_map(locals()))
             ext_methods.append(pyc_method_template.format_map(locals()))
