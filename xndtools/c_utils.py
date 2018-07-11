@@ -96,6 +96,16 @@ def get_enums(source):
         enums[name] = list(map(str.strip, block[1:-1].split(',')))
     return enums
 
+def _normalize_typespec(typespec):
+    lst = typespec.split()
+    r = lst[0]
+    for w in lst[1:]:
+        sep = ''
+        if r[-1].isalnum() and w[0].isalnum():
+            sep = ' '
+        r = r + sep + w
+    return r
+
 def _get_block_items(block, blocks): # helper function for get_structs
     union_match = re.compile(r'union\s*(@@@\d+@@@)').match
     rname_re = r'\w*[a-zA-Z_]' # reversed name
@@ -103,9 +113,9 @@ def _get_block_items(block, blocks): # helper function for get_structs
     struct_match = re.compile(r'struct\s*(@@@\d+@@@)\s*([a-zA-Z_]\w*)').match
     items = []
     for stmt in block[1:-1].split(';')[:-1]:
-
         stmt = stmt.strip()
         if stmt.startswith('PyObject_HEAD'):
+            items.append('PyObject_HEAD')
             stmt = stmt.split(None, 1)[1]
         m = union_match(stmt)
         if m is not None:
@@ -127,6 +137,7 @@ def _get_block_items(block, blocks): # helper function for get_structs
         typespec = stmt[:-len(name)].strip()
         if typespec.startswith('alignas'):
             typespec = typespec.split(' ', 1)[1]
+        typespec = _normalize_typespec(typespec)
         items.append((typespec,name,size))
     return items
 

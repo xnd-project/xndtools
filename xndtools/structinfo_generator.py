@@ -15,25 +15,17 @@ def flatten_structs(items):
     for item in items:
         if item[0]=='struct':
             members, name = item[1:]
-            for (typedef, names) in flatten_structs(members):
-                yield typedef, (name,)+names
+            for (typespec, names) in flatten_structs(members):
+                yield typespec, (name,)+names
         else:
-            typedef, name, size = item
+            typespec, name, size = item
             if size is not None:
-                yield typedef+'*', (name,)
+                yield typespec+'*', (name,)
             else:
-                yield typedef, (name,)
+                yield typespec, (name,)
 
 pyc_noarg_template = 'static PyObject *pyc_{fname}(PyObject *self, PyObject *args) {{ return PyLong_FromLong((long)({fname}())); }}'
 pyc_noarg_doc_template = '"{fname}() -> int"'
-pyc_arg_template = '''static PyObject *pyc_{fname}(PyObject *self, PyObject *args) {{
-  PyObject* ptr=NULL;
-  if (!PyArg_UnpackTuple(args, "{typename}", 0, 1, &ptr))
-    return NULL;
-  if (PyCapsule_CheckExact(ptr))
-    return PyCapsule_New({fname}(PyCapsule_GetPointer(ptr, "{typename}")), "{fname}", NULL);
-  return NULL;
-}}'''
 pyc_arg_doc_template = '"{fname}(< pointer to {typename} >) -> < pointer to {typename}->{memberattrs} >"'
 pyc_method_template = '{{"{fname}", (PyCFunction)pyc_{fname}, METH_VARARGS, {fdoc}}},'
 
@@ -43,8 +35,56 @@ pyc_module_template = '''
 
 {functions}
 
+static PyObject *pyc_capsule_to_int32(PyObject *self, PyObject *args) {{
+  PyObject* ptr=NULL;
+  if (!PyArg_UnpackTuple(args, "capsule", 1, 1, &ptr))
+    return NULL;
+  if (PyCapsule_CheckExact(ptr)) {{
+    const char* name = PyCapsule_GetName(ptr);
+    int32_t value = *((int32_t*)PyCapsule_GetPointer(ptr, name));
+    return PyLong_FromLong((long)value);
+  }}
+  PyErr_SetString(PyExc_TypeError, "expected capsule instance");
+  return NULL;
+}}
+
+static PyObject *pyc_capsule_to_int64(PyObject *self, PyObject *args) {{
+  PyObject* ptr=NULL;
+  if (!PyArg_UnpackTuple(args, "capsule", 1, 1, &ptr))
+    return NULL;
+  if (PyCapsule_CheckExact(ptr)) {{
+    const char* name = PyCapsule_GetName(ptr);
+    int64_t value = *((int64_t*)PyCapsule_GetPointer(ptr, name));
+    return PyLong_FromLong((long)value);
+  }}
+  PyErr_SetString(PyExc_TypeError, "expected capsule instance");
+  return NULL;
+}}
+
+static PyObject *pyc_capsule_to_bytes(PyObject *self, PyObject *args) {{
+  PyObject* ptr=NULL;
+  PyObject* size=NULL;
+  if (!PyArg_UnpackTuple(args, "capsule", 1, 2, &ptr, &size))
+    return NULL;
+  if (PyCapsule_CheckExact(ptr)) {{
+    const char* name = PyCapsule_GetName(ptr);
+    const char* value = ((const char*)PyCapsule_GetPointer(ptr, name));
+    if (size==NULL)
+      return PyBytes_FromString(value); // DANGER: if ptr does not contain 0 terminated string, the result is unpredictable
+    Py_ssize_t sz = PyLong_AsLong(size);
+    if (sz < 0)
+      return NULL;
+    return PyBytes_FromStringAndSize(value, sz);
+  }}
+  PyErr_SetString(PyExc_TypeError, "expected capsule instance");
+  return NULL;
+}}
+
 static PyMethodDef {modulename}_methods[] = {{
   {methods}
+  {{"value_int32", (PyCFunction)pyc_capsule_to_int32, METH_VARARGS, "(capsule) -> <capsule int32 value>"}},
+  {{"value_int64", (PyCFunction)pyc_capsule_to_int64, METH_VARARGS, "(capsule) -> <capsule int64 value>"}},
+  {{"value_bytes", (PyCFunction)pyc_capsule_to_bytes, METH_VARARGS, "(capsule[, size]) -> <capsule content as bytes>"}},
   {{NULL, NULL, 0, NULL}}   /* sentinel */
 }};
 
@@ -57,9 +97,14 @@ static struct PyModuleDef {modulename}module = {{
 }};
 
 PyMODINIT_FUNC
-PyInit_{modulename}(void) {{ return PyModule_Create(&{modulename}module); }}
+PyInit_{modulename}(void) {{ 
+  import_ndtypes();
+  return PyModule_Create(&{modulename}module); 
+}}
 #endif
 '''
+
+
 
 def generate(args):
     include_dirs = args.include_dir or []
@@ -86,25 +131,73 @@ def generate(args):
         if isinstance(items, str):
             print('SKIPPING:', typename, items)
             continue
-        fname = 'sizeof_{typename}'.format_map(locals())
+
+        if items and items[0] == 'PyObject_HEAD':
+            items = items[1:]
+            fname = f'capsulate_{typename}'
+            fdoc = 'NULL'
+            implementation = dict(
+                NdtObject=dict(check='Ndt_CheckExact'),
+            ).get(typename)
+            if implementation is not None:
+                pyc_func = f'''\
+static PyObject *pyc_{fname}(PyObject *self, PyObject *args) {{
+  PyObject* obj=NULL;
+  if (!PyArg_UnpackTuple(args, "{typename}_instance", 0, 1, &obj))
+    return NULL;
+  if ({implementation['check']}(obj)) {{
+    Py_INCREF(obj);
+    return PyCapsule_New(obj, "{typename}*", NULL);
+  }}
+  PyErr_SetString(PyExc_TypeError, "expected {typename} instance");
+  return NULL;
+}}'''
+                ext_functions.append(pyc_func)
+                ext_methods.append(pyc_method_template.format_map(locals()))
+            else:
+                print(f'capsulating {typename} not implemented')
+            
+        fname = f'sizeof_{typename}'
+        #fmember = fname
         fdoc = pyc_noarg_doc_template.format_map(locals())
-        lines.append('extern size_t {fname}(void){{ return sizeof({typename}); }}'.format_map(locals()))
+        lines.append(f'extern size_t {fname}(void){{ return sizeof({typename}); }}')
         ext_functions.append(pyc_noarg_template.format_map(locals()))
         ext_methods.append(pyc_method_template.format_map(locals()))
         
-        for typedef,names in flatten_structs(flatten_unions(items)):
+        for typespec,names in flatten_structs(flatten_unions(items)):
+            # loose C type declaration would be `<typespec> <names[-1]>`
             membernames = '_'.join(names)
             memberattrs = '.'.join(names)
             
-            fname = 'get_{typename}_{membernames}'.format_map(locals())
-            fdoc = pyc_arg_doc_template.format_map(locals())
-            lines.append('extern /* {typedef} */ void * {fname}(void* ptr){{ return &((({typename}*)ptr)->{memberattrs}); }}'.format_map(locals()))
-            ext_functions.append(pyc_arg_template.format_map(locals()))
+            fname = f'get_{typename}_{membernames}'
+
+            if typespec.endswith('*'):
+                lines.append(f'extern /* pointer to `{typespec}` */ void * {fname}(void* ptr){{ return (void*)((({typename}*)ptr)->{memberattrs}); }}')
+                fdoc = f'"{fname}(< capsule({typename}) >) -> < capsule( {typename}->{memberattrs} ) >"'
+                
+            else: # scalar
+                lines.append(f'extern /* pointer to `{typespec}` */ void * {fname}(void* ptr){{ return &((({typename}*)ptr)->{memberattrs}); }}')
+                fdoc = f'"{fname}(< capsule({typename}) >) -> < capsule( &{typename}->{memberattrs} ) >"'
+
+            pyc_func = f'''\
+static PyObject *pyc_{fname}(PyObject *self, PyObject *args) {{
+  PyObject* ptr=NULL;
+  if (!PyArg_UnpackTuple(args, "{typename}", 0, 1, &ptr))
+    return NULL;
+  if (PyCapsule_CheckExact(ptr)) {{
+    return PyCapsule_New( {fname}(PyCapsule_GetPointer(ptr, "{typename}*")), "{typespec}", NULL);
+  }}
+  PyErr_SetString(PyExc_TypeError, "expected capsuleted {typename}");
+  return NULL;
+}}'''
+
+            ext_functions.append(pyc_func)
             ext_methods.append(pyc_method_template.format_map(locals()))
 
-            fname = 'offsetof_{typename}_{membernames}'.format_map(locals())
+            fname = f'offsetof_{typename}_{membernames}'
+            fmember = fname
             fdoc = pyc_noarg_doc_template.format_map(locals())
-            lines.append('extern size_t {fname}(void){{ return offsetof({typename}, {memberattrs}); }}'.format_map(locals()))
+            lines.append(f'extern size_t {fname}(void){{ return offsetof({typename}, {memberattrs}); }}')
             ext_functions.append(pyc_noarg_template.format_map(locals()))
             ext_methods.append(pyc_method_template.format_map(locals()))
             
