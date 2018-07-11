@@ -99,6 +99,7 @@ static struct PyModuleDef {modulename}module = {{
 PyMODINIT_FUNC
 PyInit_{modulename}(void) {{ 
   import_ndtypes();
+  import_xnd();
   return PyModule_Create(&{modulename}module); 
 }}
 #endif
