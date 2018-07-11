@@ -137,7 +137,8 @@ def generate(args):
             fname = f'capsulate_{typename}'
             fdoc = 'NULL'
             implementation = dict(
-                NdtObject=dict(check='Ndt_CheckExact'),
+                NdtObject = dict(check='Ndt_CheckExact'),
+                XndObject = dict(check='Ndt_Check'),
             ).get(typename)
             if implementation is not None:
                 pyc_func = f'''\
