@@ -4,11 +4,27 @@ structinfo_generator scans C header files for struct definitions
 and generates the following functions for all struct members:
 1. getters: <member typedef> get_<struct name>_<member name>(void *ptr);
 2. sizeof: size_t sizeof_<struct_name>(void);
-3. offsetof: size_t offsetof_<struct_name>_<member name>(void); 
+3. offsetof: size_t offsetof_<struct_name>_<member name>(void);
+
+The input to structinfo_generator can be specified in python script
+file that must be given to the script as single argument.
+
+The configuration script must contain the following members:
+  includes - list of header file names
+  include_dirs - list of paths
+  output_filename - path to C file to be generated
+and optionally the following members
+  modulename - name of generated python module, default is the basename of output_filename
+  c_source - string containing C code
+  capi_source - string containg Python C/API code
+  PyMethodDef_items - string of lines `{"<methodname>", (PyCFunction)<capi function>, <METH_VARARGS|...>, "<method documentation>" },`
+  PyInit_source - string containing C code that is inserted to module initialization function
 '''
 # Author: Pearu Peterson
 # Created: July 2018
 
+import os
+import sys
 from xndtools import structinfo_generator
 
 def show_description(args):
@@ -17,21 +33,40 @@ def show_description(args):
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description = __doc__,
-                                     prog = 'structinfo_generator')
-    parser.add_argument('--version', action='version', version='%(prog)s 1.0')
-    parser.set_defaults(func=show_description)
 
-    parser.add_argument('-I', '--include-dir',
-                        default=[], action='append',
-                        help='Specify include directory')
-    parser.add_argument('include', nargs='+',
-                        help = 'Specify header file to be scanned for struct definitions')
-    parser.add_argument('-o','--output',
-                        help = 'Specify path to C source file where the functions will be generated'
-    )
-    parser.set_defaults(func=structinfo_generator.generate)
-    args = parser.parse_args()
+    if len(sys.argv)==2 and os.path.splitext(sys.argv[1])[1].startswith('.py'):
+        import imp
+        m = imp.load_source('structinfo_generator_config', sys.argv[1])    
+        args = argparse.Namespace(include = m.includes,
+                                  include_dir = m.include_dirs,
+                                  output = m.output_filename,
+                                  modulename = m.modulename,
+                                  c_source = getattr(m, 'c_source', ''),
+                                  capi_source = getattr(m, 'capi_source', ''),
+                                  PyMethodDef_items = getattr(m, 'PyMethodDef_items', ''),
+                                  PyInit_source = getattr(m, 'PyInit_source', ''),
+                                  func=structinfo_generator.generate,
+        )
+    else:
+        parser = argparse.ArgumentParser(description = __doc__,
+                                         prog = 'structinfo_generator')
+        parser.add_argument('--version', action='version', version='%(prog)s 1.0')
+        parser.set_defaults(func=show_description)
+
+        parser.add_argument('-I', '--include-dir',
+                            default=[], action='append',
+                            help='Specify include directory')
+        parser.add_argument('include', nargs='+',
+                            help = 'Specify header file to be scanned for struct definitions')
+        parser.add_argument('-o','--output',
+                            help = 'Specify path to C source file where the functions will be generated'
+        )
+        parser.set_defaults(func=structinfo_generator.generate)
+        args = parser.parse_args()
+        args.c_source = ''
+        args.pycapi_source = ''
+        args.PyMethodDef_items = ''
+        args.PyInit_source = ''
     args.func(args)
     
 if __name__ == '__main__':

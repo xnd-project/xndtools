@@ -97,9 +97,8 @@ static struct PyModuleDef {modulename}module = {{
 }};
 
 PyMODINIT_FUNC
-PyInit_{modulename}(void) {{ 
-  import_ndtypes();
-  import_xnd();
+PyInit_{modulename}(void) {{
+  {PyInit_source}
   return PyModule_Create(&{modulename}module); 
 }}
 #endif
@@ -114,7 +113,9 @@ def generate(args):
     if target is None:
         target = os.path.basename(include).replace('.','_') + '_structinfo.c'
         orig_include = include
-    modulename = os.path.splitext(os.path.basename(target))[0]
+    modulename = args.modulename
+    if not modulename:
+        modulename = os.path.splitext(os.path.basename(target))[0]
 
     source = []
     for include in args.include:
@@ -126,8 +127,11 @@ def generate(args):
     lines = ['/* This file is generated using structinfo_generator from the xndtools project */']
     for include in args.include:
         lines.append('#include "{}"'.format(include))
-    ext_functions = []
-    ext_methods = []
+
+    lines.append(args.c_source)
+        
+    ext_functions = [args.capi_source]
+    ext_methods = [args.PyMethodDef_items]
     for typename, items in structs.items():
         if isinstance(items, str):
             print('SKIPPING:', typename, items)
@@ -202,9 +206,10 @@ static PyObject *pyc_{fname}(PyObject *self, PyObject *args) {{
             lines.append(f'extern size_t {fname}(void){{ return offsetof({typename}, {memberattrs}); }}')
             ext_functions.append(pyc_noarg_template.format_map(locals()))
             ext_methods.append(pyc_method_template.format_map(locals()))
-            
     methods = '\n  '.join(ext_methods)
     functions = '\n'.join(ext_functions)
+
+    PyInit_source = args.PyInit_source
     ext_module = pyc_module_template.format_map(locals())
     f = open(target, 'w')
     f.write('\n'.join(lines))
