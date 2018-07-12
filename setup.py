@@ -47,6 +47,6 @@ setup(
     include_package_data=True,
     packages=['xndtools', 'xndtools.kernel_generator'],
     #package_data={'xndtools': data_files},
-    scripts = ['scripts/xnd_tools'],
+    scripts = ['scripts/xnd_tools', 'scripts/structinfo_generator'],
     cmdclass={'build_py': my_build_py},
 )
