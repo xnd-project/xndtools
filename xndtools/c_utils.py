@@ -153,7 +153,9 @@ def get_structs(source):
     """
     source, blocks = get_c_blocks(source)
     source = expand_extern_C(source, blocks)
-    typedef_struct_re = r'typedef\s+struct\s*(@@@\d+@@@|[a-zA-Z_]\w*\s)\s*([a-zA-Z_]\w*)\s*;'
+    # positive lookahead is so so that `typedef struct` can only includ an uncaptured name after it, if we are defined the
+    # full struct in a body below, with @@@
+    typedef_struct_re = r'typedef\s+struct(?:\s+[a-zA-Z_]\w*(?=\s*@))?\s*(@@@\d+@@@|[a-zA-Z_]\w*\s)\s*([a-zA-Z_]\w*)\s*;'
     struct_re = r'struct\s+([a-zA-Z_]\w*)\s*(@@@\d+@@@)\s*;'
     structs = {}
     for line,key1,name1,name2,key2 in re.findall('('+typedef_struct_re+'|'+struct_re+')', source, re.MULTILINE | re.DOTALL):
