@@ -44,11 +44,11 @@ def resolve_includes(source, include_dirs = [], skip_includes = []):
             return source[slice(*m.span())]
         print('including', include_file)
         f = open(include_file)
-        include_content = f.read()
+        include_content = remove_comments(f.read())
         f.close()
         skip_includes.append(include_file)
         return resolve_includes(include_content, include_dirs = include_dirs, skip_includes = skip_includes)
-    return re.sub(include_re, include_repl, source)
+    return re.sub(include_re, include_repl, source, re.MULTILINE)
 
 def get_c_blocks(source,
                  _wdir=dict(counter=0, blocks={}),
@@ -92,7 +92,7 @@ def get_enums(source):
     enum_re = r'enum\s+([a-zA-Z_]\w*)\s*(@@@\d+@@@)\s*;'
     enums = {}
     for name, key in re.findall(enum_re, source, re.MULTILINE | re.DOTALL):
-        block = remove_comments(blocks[key])
+        block = blocks[key]
         enums[name] = list(map(str.strip, block[1:-1].split(',')))
     return enums
 
@@ -153,18 +153,26 @@ def get_structs(source):
     """
     source, blocks = get_c_blocks(source)
     source = expand_extern_C(source, blocks)
-    # positive lookahead is so so that `typedef struct` can only includ an uncaptured name after it, if we are defined the
-    # full struct in a body below, with @@@
-    typedef_struct_re = r'typedef\s+struct(?:\s+[a-zA-Z_]\w*(?=\s*@))?\s*(@@@\d+@@@|[a-zA-Z_]\w*\s)\s*([a-zA-Z_]\w*)\s*;'
-    struct_re = r'struct\s+([a-zA-Z_]\w*)\s*(@@@\d+@@@)\s*;'
+
+    struct_patterns = [
+        # `typedef struct word1 word2;`          key=word1, name=word2; when word1 will be replaced with word2
+        r'typedef\s+struct\s*([a-zA-Z_]\w*)\s+([a-zA-Z_]\w*)\s*;',
+        # `typedef struct {...} word2;`          key={...}, name=word2
+        r'typedef\s+struct\s*(@@@\d+@@@)\s*([a-zA-Z_]\w*)\s*;',
+        # `typedef struct word1 {...} word2;`    key={...}, name=word2; word1 is unused
+        r'typedef\s+struct\s*[a-zA-Z_]\w*\s*(@@@\d+@@@)\s*([a-zA-Z_]\w*)\s*;', 
+        # `struct word1 {...}`                   key=word1, name={...}; needs a key-name swap
+        r'struct\s+([a-zA-Z_]\w*)\s*(@@@\d+@@@)\s*;' 
+    ]
     structs = {}
-    for line,key1,name1,name2,key2 in re.findall('('+typedef_struct_re+'|'+struct_re+')', source, re.MULTILINE | re.DOTALL):
-        key, name = map(str.strip, (key1, name1) if key1 else (key2, name2))
+    for r in re.findall('|'.join(struct_patterns), source, re.MULTILINE | re.DOTALL):
+        key, name = filter(bool, r)
+        if name[0]=='@':                         # swap
+            key, name = name, key
         if key[0]=='@':
-            block = remove_comments(blocks[key])
-            if name in structs:
+            if name in structs:                  # replace word1 with word2
                 name = structs.pop(name)
-            structs[name] = _get_block_items(block, blocks)
+            structs[name] = _get_block_items(remove_comments(blocks[key]), blocks)
         else:
             structs[key] = name
     return structs
