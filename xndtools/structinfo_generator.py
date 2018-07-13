@@ -178,7 +178,7 @@ static PyObject *pyc_{fname}(PyObject *self, PyObject *args) {{
             fname = f'get_{typename}_{membernames}'
 
             if typespec.endswith('*'):
-                lines.append(f'extern /* pointer to `{typespec}` */ void * {fname}(void* ptr){{ return (void*)((({typename}*)ptr)->{memberattrs}); }}')
+                lines.append(f'extern /* `{typespec}` */ void * {fname}(void* ptr){{ return (void*)((({typename}*)ptr)->{memberattrs}); }}')
                 fdoc = f'"{fname}(< capsule({typename}) >) -> < capsule( {typename}->{memberattrs} ) >"'
                 
             else: # scalar
