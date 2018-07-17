@@ -47,4 +47,4 @@ and module generations are integrated. So, run
 
 6. Test in python:
 
-  python test_example.py
+  py.test -sv xndlib/tests/test_example.py
