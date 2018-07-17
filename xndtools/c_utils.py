@@ -155,14 +155,14 @@ def get_structs(source):
     source = expand_extern_C(source, blocks)
 
     struct_patterns = [
-        # `typedef struct word1 word2;`          key=word1, name=word2; when word1 will be replaced with word2
+        # `typedef struct word1 word2;`          key=word1, name=word2; word1 will be replaced with word2
         r'typedef\s+struct\s*([a-zA-Z_]\w*)\s+([a-zA-Z_]\w*)\s*;',
         # `typedef struct {...} word2;`          key={...}, name=word2
         r'typedef\s+struct\s*(@@@\d+@@@)\s*([a-zA-Z_]\w*)\s*;',
         # `typedef struct word1 {...} word2;`    key={...}, name=word2; word1 is unused
         r'typedef\s+struct\s*[a-zA-Z_]\w*\s*(@@@\d+@@@)\s*([a-zA-Z_]\w*)\s*;', 
         # `struct word1 {...}`                   key=word1, name={...}; needs a key-name swap
-        r'struct\s+([a-zA-Z_]\w*)\s*(@@@\d+@@@)\s*;' 
+        r'struct\s+([a-zA-Z_]\w*)\s*(@@@\d+@@@)\s*;'
     ]
     structs = {}
     for r in re.findall('|'.join(struct_patterns), source, re.MULTILINE | re.DOTALL):

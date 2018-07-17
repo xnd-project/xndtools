@@ -59,6 +59,6 @@ For example,
 ```
   cd xndlib
   python setup.py develop
-  python test_example.py
+  py.test -sv xndlib/
 ```
   
