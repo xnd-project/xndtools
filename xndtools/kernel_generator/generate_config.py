@@ -249,7 +249,7 @@ def generate_config(modulename,
         source = open (filename).read()
         for prototype in reader(source, match_patterns = match_patterns, exclude_patterns = exclude_patterns + existing_names):
             print('generate_config: included: {}'.format(prototype['name']))
-            prototype.signature(typemap=typemap) # makes typemap
+            prototype.update_typemap(typemap)
             s = prototype.signature(typemap=typemap, kind='match')
             groups[s].append(prototype)
 

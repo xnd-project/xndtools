@@ -212,6 +212,11 @@ class Prototype(dict):
                                                                    _conventions = (self.get ('conventions') or ''),
                                                      **self)
 
+    def update_typemap(self, typemap):
+        for a in self['arguments']:
+            a.update_typemap(typemap)
+        typemap(self['type'])
+    
     def signature(self, typemap, kind = 'ndtypes', prefix = ''):
         args = ', '.join([prefix + a.signature(typemap, kind=kind, prototype=self) for a in self['arguments']])
         s = ArgumentDeclaration(self).signature(typemap, kind=kind)
@@ -348,9 +353,12 @@ class ArgumentDeclaration(dict):
     is_intent_input_output = property(is_intent_input_output)
     is_intent_inplace_output = property(is_intent_inplace_output)
     is_intent_inout_output = property(is_intent_inout_output)
+
+    def update_typemap(self, typemap):
+        typemap(self['type'])
     
     def signature(self, typemap, kind = 'ndtypes', prototype = None):
-        if kind == 'ndtypes':
+        if kind == 'ndtypes': # obsolete?
             stype = typemap(self['type'])
             name = self.get('name')
             left_modifier = self.get('left_modifier')
@@ -360,7 +368,7 @@ class ArgumentDeclaration(dict):
                 if name:
                     return '{}(<dimensions> {})'.format (self['name'], stype)
                 return '<dimensions> {}'.format (stype)
-            assert not left_modifier,repr ((str(self), str (prototype)))
+            assert not left_modifier,repr ((left_modifier,str(self), str (prototype)))
             assert not right_modifier
             if name:
                 return '{}({})'.format (self['name'], stype)
