@@ -19,6 +19,7 @@ XND Tools provides development tools for the XND project. Currently, the followi
   ./configure --prefix=$PREFIX
   make
   make install
+  pip install -U .
   cd ..
 ```
 - [xnd](https://github.com/plures/xnd)
@@ -29,6 +30,7 @@ XND Tools provides development tools for the XND project. Currently, the followi
   ./configure --prefix=$PREFIX --with-includes=$PREFIX/include
   make
   make install
+  pip install -U .
   cd ..
 ```
 
@@ -40,6 +42,7 @@ XND Tools provides development tools for the XND project. Currently, the followi
   ./configure --prefix=$PREFIX --with-includes=$PREFIX/include
   make
   make install
+  pip install -U .
   cd ..
 ```
 
