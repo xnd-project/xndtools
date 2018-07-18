@@ -153,7 +153,7 @@ class PrototypeReader(object):
 
         """
         comment_re = r'/[*].*?[*]/'
-        cfuncproto_re = r'\n\s*([A-Za-z_][\w\s*]*)\(([\w,\s*&\\\[\]]*?)\)\s*;'
+        cfuncproto_re = r'(?=\n|\A)\s*([A-Za-z_][\w\s*]*)\(([\w,\s*&\\\[\]]*?)\)\s*;'
 
         source = re.sub(comment_re,'', source, flags=re.MULTILINE | re.DOTALL) # remove /* .. */ comments
         source = source.replace ('\\\n', '')                                   # resolve line continuations
