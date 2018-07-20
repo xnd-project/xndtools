@@ -566,13 +566,38 @@ if ({name} != NULL) {{
                 '''NOTIMPLEMENTED_INOUT_STRIDED...''' * is_inout*kind_is('Strided'),
                 '''NOTIMPLEMENTED_INOUT_XND...''' * is_inout*kind_is('Xnd'),
 
-                '''NOTIMPLEMENTED_INPLACE_C...''' * is_inplace*kind_is('C'),
+                '''//NOTIMPLEMENTED_INPLACE_C
+if (ndt_is_c_contiguous(gmk_input_{name}.type))
+  {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
+else
+  {name} = ({ctype}*)xndtools_copy(&gmk_input_{name}, gmk_ctx);
+if ({name} != NULL) {{
+...
+if (!ndt_is_c_contiguous(gmk_input_{name}.type)) {{
+  xndtools_invcpy((const char*){name}, &gmk_input_{name}, gmk_ctx);
+  free({name});
+}}
+}} else gmk_success = -1; /* if ({name} != NULL) */
+''' * is_inplace*kind_is('C'),
                 '''NOTIMPLEMENTED_INPLACE_F...''' * is_inplace*kind_is('Fortran'),
                 '''NOTIMPLEMENTED_INPLACE_STRIDED...''' * is_inplace*kind_is('Strided'),
                 '''NOTIMPLEMENTED_INPLACE_XND...''' * is_inplace*kind_is('Xnd'),
 
 
-                '''NOTIMPLEMENTED_INPUT_OUTPUT_C...''' * is_input_output*kind_is('C'),
+                '''
+if (ndt_is_c_contiguous(gmk_input_{name}.type))
+  {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
+else
+  {name} = ({ctype}*)xndtools_copy(&gmk_input_{name}, gmk_ctx);
+if ({name} != NULL) {{
+...
+  xndtools_invcpy((const char*){name}, &gmk_output_{name}, gmk_ctx);
+if (!ndt_is_c_contiguous(gmk_input_{name}.type)) {{
+
+  free({name});
+}}
+}} else gmk_success = -1; /* if ({name} != NULL) */
+''' * is_input_output*kind_is('C'),
                 '''NOTIMPLEMENTED_INPUT_OUTPUT_F...''' * is_input_output*kind_is('Fortran'),
                 '''NOTIMPLEMENTED_INPUT_OUTPUT_STRIDED...''' * is_input_output*kind_is('Strided'),
                 '''{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name});
@@ -588,7 +613,10 @@ xndtools_cpy((char*){name}, &gmk_input_{name}, ndt_is_f_contiguous(gmk_output_{n
                 '''NOTIMPLEMENTED_INOUT_OUTPUT_STRIDED...''' * is_inout_output*kind_is('Strided'),
                 '''NOTIMPLEMENTED_INOUT_OUTPUT_XND...''' * is_inout_output*kind_is('Xnd'),
                                 
-                '''NOTIMPLEMENTED_OUTPUT_C...''' * is_output*kind_is('C'),
+                '''
+{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name});
+...
+''' * is_output*kind_is('C'),
                 '''NOTIMPLEMENTED_OUTPUT_F...''' * is_output*kind_is('Fortran'),
                 '''NOTIMPLEMENTED_OUTPUT_STRIDED...''' * is_output*kind_is('Strided'),
                 '{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name});...' * is_output*kind_is('Xnd'), # todo F-contiguous output
