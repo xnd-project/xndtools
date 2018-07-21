@@ -494,9 +494,13 @@ source_template['kernels']['arguments'] = Template(
         warnings = [
             'inplace|inout has not effect: C scalar cannot be changed in-situ (in {kernel_name})' * (is_inplace+is_inout+is_inplace_output+is_inout_output)*is_scalar,
         ],
-        # body generates body-start-list and body-end-list, so all items must contain `...`
+        #
+        # body generates body-start-list and body-end-list, so all items must contain `...` !!!
+        #
         body = [[
-            # Scalars:
+            # ==================================================
+            #                   Scalar arguments
+            # ==================================================
             [
                 [
                     '{name} = {value};...'*(is_hide+is_output),
@@ -527,14 +531,18 @@ else
                     '...*GMK_SCALAR_DATA({ctype}, gmk_output_{name}) = {name};' * is_outany,
                 ]
             ] * (is_scalar+is_scalar_ptr),
-
-            # Arrays:
+            # ==================================================
+            #                   Array arguments
+            # ==================================================
             [
+            # --------------------------------------------------
+            #                   Array arguments - input
+            # --------------------------------------------------
                 '''\
 if (ndt_is_c_contiguous(gmk_input_{name}.type))
   {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
 else
-  {name} = ({ctype}*)xndtools_copy(&gmk_input_{name}, gmk_ctx);
+  {name} = ({ctype}*)xndtools_copy(&gmk_input_{name}, gmk_ctx); // TODO: is this ever reached?
 if ({name} != NULL) {{
 ...
 if (!ndt_is_c_contiguous(gmk_input_{name}.type))
@@ -545,7 +553,7 @@ if (!ndt_is_c_contiguous(gmk_input_{name}.type))
 if (ndt_is_f_contiguous(gmk_input_{name}.type))
   {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
 else
-  {name} = ({ctype}*)xndtools_fcopy(&gmk_input_{name}, gmk_ctx);
+  {name} = ({ctype}*)xndtools_fcopy(&gmk_input_{name}, gmk_ctx); // TODO: is this ever reached?
 if ({name} != NULL) {{
 ...
 if (!ndt_is_f_contiguous(gmk_input_{name}.type))
@@ -560,13 +568,17 @@ if ({name} != NULL) {{
   free({name});
 }} else gmk_success = -1; /* if ({name} != NULL) */
 '''*(is_input*kind_is('Xnd')),
-
+            # --------------------------------------------------
+            #                   Array arguments - inout
+            # --------------------------------------------------
                 '''NOTIMPLEMENTED_INOUT_C...''' * is_inout*kind_is('C'),
                 '''NOTIMPLEMENTED_INOUT_F...''' * is_inout*kind_is('Fortran'),
                 '''NOTIMPLEMENTED_INOUT_STRIDED...''' * is_inout*kind_is('Strided'),
                 '''NOTIMPLEMENTED_INOUT_XND...''' * is_inout*kind_is('Xnd'),
-
-                '''//NOTIMPLEMENTED_INPLACE_C
+            # --------------------------------------------------
+            #                   Array arguments - inplace
+            # --------------------------------------------------
+                '''\
 if (ndt_is_c_contiguous(gmk_input_{name}.type))
   {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
 else
@@ -574,16 +586,24 @@ else
 if ({name} != NULL) {{
 ...
 if (!ndt_is_c_contiguous(gmk_input_{name}.type)) {{
-  xndtools_invcpy((const char*){name}, &gmk_input_{name}, gmk_ctx);
+  xndtools_invcpy((const char*){name}, &gmk_input_{name}, false);
   free({name});
 }}
 }} else gmk_success = -1; /* if ({name} != NULL) */
 ''' * is_inplace*kind_is('C'),
                 '''NOTIMPLEMENTED_INPLACE_F...''' * is_inplace*kind_is('Fortran'),
                 '''NOTIMPLEMENTED_INPLACE_STRIDED...''' * is_inplace*kind_is('Strided'),
-                '''NOTIMPLEMENTED_INPLACE_XND...''' * is_inplace*kind_is('Xnd'),
-
-
+                '''
+{name} = ({ctype}*)xndtools_copy(&gmk_input_{name}, gmk_ctx); // returns C contiguous
+if ({name} != NULL) {{
+...
+  xndtools_invcpy((const char*){name}, &gmk_input_{name}, false);
+  free({name});
+}} else gmk_success = -1; /* if ({name} != NULL) */
+''' * is_inplace*kind_is('Xnd'),
+            # --------------------------------------------------
+            #                   Array arguments - input_output
+            # --------------------------------------------------
                 '''
 if (ndt_is_c_contiguous(gmk_input_{name}.type))
   {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
@@ -593,34 +613,39 @@ if ({name} != NULL) {{
 ...
   xndtools_invcpy((const char*){name}, &gmk_output_{name}, gmk_ctx);
 if (!ndt_is_c_contiguous(gmk_input_{name}.type)) {{
-
   free({name});
 }}
 }} else gmk_success = -1; /* if ({name} != NULL) */
 ''' * is_input_output*kind_is('C'),
                 '''NOTIMPLEMENTED_INPUT_OUTPUT_F...''' * is_input_output*kind_is('Fortran'),
                 '''NOTIMPLEMENTED_INPUT_OUTPUT_STRIDED...''' * is_input_output*kind_is('Strided'),
-                '''{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name});
+                '''\
+{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name});
 xndtools_cpy((char*){name}, &gmk_input_{name}, ndt_is_f_contiguous(gmk_output_{name}.type));...''' * is_input_output*kind_is('Xnd'),
-
+            # --------------------------------------------------
+            #                   Array arguments - inplace_output
+            # --------------------------------------------------
                 '''NOTIMPLEMENTED_INPLACE_OUTPUT_C...''' * is_inplace_output*kind_is('C'),
                 '''NOTIMPLEMENTED_INPLACE_OUTPUT_F...''' * is_inplace_output*kind_is('Fortran'),
                 '''NOTIMPLEMENTED_INPLACE_OUTPUT_STRIDED...''' * is_inplace_output*kind_is('Strided'),
                 '''NOTIMPLEMENTED_INPLACE_OUTPUT_XND...''' * is_inplace_output*kind_is('Xnd'),
-
+            # --------------------------------------------------
+            #                   Array arguments - inout_output
+            # --------------------------------------------------
                 '''NOTIMPLEMENTED_INOUT_OUTPUT_C...''' * is_inout_output*kind_is('C'),
                 '''NOTIMPLEMENTED_INOUT_OUTPUT_F...''' * is_inout_output*kind_is('Fortran'),
                 '''NOTIMPLEMENTED_INOUT_OUTPUT_STRIDED...''' * is_inout_output*kind_is('Strided'),
                 '''NOTIMPLEMENTED_INOUT_OUTPUT_XND...''' * is_inout_output*kind_is('Xnd'),
-                                
-                '''
-{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name});
-...
-''' * is_output*kind_is('C'),
-                '''NOTIMPLEMENTED_OUTPUT_F...''' * is_output*kind_is('Fortran'),
+            # --------------------------------------------------
+            #                   Array arguments - output
+            # --------------------------------------------------
+                '''\
+{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name}); // always contiguous
+...''' * is_output*(kind_is('C')+kind_is('Fortran')+kind_is('Xnd')),
                 '''NOTIMPLEMENTED_OUTPUT_STRIDED...''' * is_output*kind_is('Strided'),
-                '{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name});...' * is_output*kind_is('Xnd'), # todo F-contiguous output
-
+            # --------------------------------------------------
+            #                   Array arguments - hide
+            # --------------------------------------------------
                 '''NOTIMPLEMENTED_HIDE_C...''' * is_hide*kind_is('C'),
                 '''NOTIMPLEMENTED_HIDE_F...''' * is_hide*kind_is('Fortran'),
                 '''NOTIMPLEMENTED_HIDE_STRIDED...''' * is_hide*kind_is('Strided'),
