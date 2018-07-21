@@ -11,6 +11,7 @@ try:
 except ImportError:
     from distutils.core import setup, Extension
 
+import xndtools
 from xndtools.kernel_generator import generate_module
 from argparse import Namespace
 
@@ -43,7 +44,7 @@ for cfg in kernel_configuration_files:
     ))
     include_dirs += m['include_dirs']
     sources = m['sources']
-    depends = sources
+    depends = sources + [cfg] + [xndtools.__file__]
     extra_compile_args = []
     extra_link_args = []
     runtime_library_dirs = []
