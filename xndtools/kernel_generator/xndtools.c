@@ -177,36 +177,36 @@ int xndtools_invcpy(const char* src, const xnd_t* stack_ptr, bool fortran) {
     switch (itemsize) { // todo: check if assignment is faster than memcpy or not
     case 1:
       {
-	int8_t* out = (int8_t*)ptr0;
+	const int8_t* in = (const int8_t*)src;
 	for (int64_t i=0; i< N; i++)
-	  out[i] = *(const int8_t*)(src+i*step);
+	  *(int8_t*)(ptr0+i*step) = in[i];
 	break;
       }
     case 2:
       {
-	int16_t* out = (int16_t*)ptr0;
+	const int16_t* in = (const int16_t*)src;
 	for (int64_t i=0; i< N; i++)
-	  out[i] = *(const int16_t*)(src+i*step);
+	  *(int16_t*)(ptr0+i*step) = in[i];
 	break;
       }
     case 4:
       {
-	int32_t* out = (int32_t*)ptr0;
+	const int32_t* in = (const int32_t*)src;
 	for (int64_t i=0; i< N; i++)
-	  out[i] = *(const int32_t*)(src+i*step);
+	  *(int32_t*)(ptr0+i*step) = in[i];
 	break;
       }
     case 8:
       {
-	int64_t* out = (int64_t*)ptr0;
+	const int64_t* in = (const int64_t*)src;
 	for (int64_t i=0; i< N; i++)
-	  out[i] = *(const int64_t*)(src+i*step);
+	  *(int64_t*)(ptr0+i*step) = in[i];
 	break;
       }
     default:
       {
 	for (int64_t i=0; i< N; i++)
-	  memcpy(ptr0+i*itemsize, src+i*step, itemsize);
+	  memcpy(ptr0+i*step, src+i*itemsize, itemsize);
       }
     }
     return N*itemsize;
