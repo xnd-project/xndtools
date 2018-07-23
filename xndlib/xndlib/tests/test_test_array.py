@@ -1,4 +1,3 @@
-
 import pytest
 from xnd import xnd
 import test_array as m
@@ -62,7 +61,7 @@ def test_array_range_input_output():
     o, r = m.test_array_range_input_output(a)
     assert_equal(r, xnd(6))
     assert_equal(o, xnd([0,1,2]))
-    assert_equal(a, xnd([0,1,2])) # because `a` matches exactly
+    assert_equal(a, xnd([1,2,3]))
 
     # F kernel
     # TODO
