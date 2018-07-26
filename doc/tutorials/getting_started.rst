@@ -109,7 +109,9 @@ The next step is about creating the interface to ``gumath``, and registering our
 For now we are still in the C world, so we also need to expose our kernel to
 Python. This is done by creating an extension module. Fortunately, XND tools
 does that for us as well. The following command will create the
-``square-python.c`` file:
+``square-python.c`` file. Note that it also creates the ``square-kernels.c``
+file if it does not already exists, so the previous command is not necessary
+here.
 
 .. code-block:: bash
 
@@ -124,12 +126,12 @@ function, its kernel, and create a static library with the following commands:
 .. code-block:: bash
 
    $ gcc -fPIC                                   \
-   $ -c square.c                                 \
-   $ -c square-kernels.c -fPIC                   \
-   $ -I$SITE_PACKAGES/ndtypes                    \
-   $ -I$SITE_PACKAGES/xnd                        \
-   $ -I$SITE_PACKAGES/gumath                     \
-   $ -I$SITE_PACKAGES/xndtools/kernel_generator
+     -c square.c                                 \
+     -c square-kernels.c -fPIC                   \
+     -I$SITE_PACKAGES/ndtypes                    \
+     -I$SITE_PACKAGES/xnd                        \
+     -I$SITE_PACKAGES/gumath                     \
+     -I$SITE_PACKAGES/xndtools/kernel_generator
    $ ar rcs libsquare-kernels.a square-kernels.o square.o
 
 Then building a C extension for CPython can be done using ``distutils``. It just

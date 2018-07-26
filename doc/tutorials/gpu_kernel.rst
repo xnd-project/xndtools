@@ -173,12 +173,12 @@ And create a static library:
 
    $ nvcc --compiler-options '-fPIC' -c add_gpu.cu
    $ gcc -fPIC                                               \
-   $ -c add_gpu-kernels.c                                    \
-   $ -c $SITE_PACKAGES/xndtools/kernel_generator/xndtools.c  \
-   $ -I$SITE_PACKAGES/xndtools/kernel_generator              \
-   $ -I$SITE_PACKAGES/xnd                                    \
-   $ -I$SITE_PACKAGES/ndtypes                                \
-   $ -I$SITE_PACKAGES/gumath
+     -c add_gpu-kernels.c                                    \
+     -c $SITE_PACKAGES/xndtools/kernel_generator/xndtools.c  \
+     -I$SITE_PACKAGES/xndtools/kernel_generator              \
+     -I$SITE_PACKAGES/xnd                                    \
+     -I$SITE_PACKAGES/ndtypes                                \
+     -I$SITE_PACKAGES/gumath
    $ ar rcs libadd_gpu-kernels.a add_gpu.o add_gpu-kernels.o xndtools.o
 
 Finally, launch ``python setup.py install`` with this ``setup.py`` file:
