@@ -35,3 +35,16 @@ Developer notes
    notes/index.rst
 
 
+Tutorials
+---------
+
+Tutorials on using XND tools.
+
+
+.. toctree::
+   :maxdepth: 1
+
+   tutorials/getting_started.rst
+   tutorials/gpu_kernel.rst
+
+
