@@ -39,8 +39,10 @@ def is_intent_hide(data): return data.get('intent') == ('hide',)
 def is_intent_input_output(data): return data.get('intent') == ('input','output')
 def is_intent_inplace_output(data): return data.get('intent') == ('inplace','output')
 def is_intent_inout_output(data): return data.get('intent') == ('inout','output')
-
-
+def is_fortran(data): return data.get('fortran', False)  # only applicable for 2 or more dimensional arrays
+def is_c(data): return not data.get('fortran', False)
+def is_tensor(data): return len(data.get('shape',()))>1
+def is_vector(data): return len(data.get('shape',()))==1
 
 class NormalizedTypeMap(dict):
     """C type specification map to normalized type name.
@@ -228,7 +230,14 @@ class Prototype(dict):
 
     def get_argument(self, name):
         return self['arguments'][self['argument_map'][name]]
-    
+
+    def set_argument_fortran(self, name):
+        a = self.get_argument(name)
+        a['fortran'] = True
+    def set_argument_c(self, name):
+        a = self.get_argument(name)
+        a['fortran'] = False
+        
     def set_argument_value(self, name, value):
         #print('{}.set_argument_value({!r}, {!r})'.format(type(self).__name__, name, value))
         a = self.get_argument(name)
@@ -341,7 +350,6 @@ class ArgumentDeclaration(dict):
     @property
     def is_array(self):
         return self.get('left_modifier')=='*' and self.get('shape')
-
     
     is_intent_inany = property(is_intent_inany)
     is_intent_outany = property(is_intent_outany)
@@ -353,7 +361,12 @@ class ArgumentDeclaration(dict):
     is_intent_input_output = property(is_intent_input_output)
     is_intent_inplace_output = property(is_intent_inplace_output)
     is_intent_inout_output = property(is_intent_inout_output)
+    is_fortran = property(is_fortran)
+    is_c = property(is_c)
+    is_tensor = property(is_tensor)
+    is_vector = property(is_vector)
 
+    
     def update_typemap(self, typemap):
         typemap(self['type'])
     

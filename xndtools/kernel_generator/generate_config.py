@@ -265,8 +265,7 @@ def generate_config(modulename,
                 input_arguments.append(arg['name'])
             else:
                 inplace_arguments.append(arg['name'])
-        
-        
+                
         functions.append((name,
                           dict(
                               SKIP = '# REMOVE THIS LINE WHEN READY',
@@ -278,6 +277,7 @@ def generate_config(modulename,
                               inout_arguments = '',
                               output_arguments = '',
                               hide_arguments = '',
+                              fortran_arguments = '', # by default all arguments are assumed to be C contiguous.
                               #pre_loop_code = '',
                               #pre_call_code = '',
                               #post_call_code = '',

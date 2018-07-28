@@ -42,9 +42,10 @@ is_inplace_output = Predicate(utils.is_intent_inplace_output)
 is_inout_output = Predicate(utils.is_intent_inout_output)
 is_inany = Predicate(utils.is_intent_inany)
 is_outany = Predicate(utils.is_intent_outany)
-
-
-# TODO: C and Fortran contiguous arguments and return values
+is_fortran = Predicate(utils.is_fortran)
+is_c = Predicate(utils.is_c)
+is_tensor = Predicate(utils.is_tensor)
+is_vector = Predicate(utils.is_vector)
 
 #
 # join functions
@@ -128,6 +129,9 @@ def join_signatures_list(lst):
 def join_dimension_list(lst):
     # Prepends ellipses dimension
     return ' * '.join(lst)
+
+def join_shape_list(lst):
+    return '(' + ') * ('.join(lst) + ')'
 
 def join_short_doc_list(lst):
     kernels = defaultdict(list)
@@ -535,123 +539,233 @@ else
             #                   Array arguments
             # ==================================================
             [
-            # --------------------------------------------------
-            #                   Array arguments - input
-            # --------------------------------------------------
-                '''\
-if (ndt_is_c_contiguous(gmk_input_{name}.type))
-  {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
+                # --------------------------------------------------
+                #                   Array arguments - input
+                # --------------------------------------------------
+                # C-kind means that all inputs are C-contiguous
+                # Fortran-kind means that all inputs are F-contiguous
+                # is-C means that particular input needs to be C-contiguous
+                # is-Fortran means that particular input needs to be F-contiguous
+                # (is_c + is_fortran) == True, If is_vector then is_c == True 
+                [
+                    '{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});...'*(kind_is('C')*is_c + kind_is('Fortran')*is_fortran + is_vector*(kind_is('C') + kind_is('Fortran'))),
+                    '''\
+bool gmk_{name}_copied = !ndt_{is_contiguous}(gmk_input_{name}.type);
+if (gmk_{name}_copied)
+  {name} = ({ctype}*){xndtools_copy}(&gmk_input_{name}, gmk_ctx);
 else
-  {name} = ({ctype}*)xndtools_copy(&gmk_input_{name}, gmk_ctx); // TODO: is this ever reached?
-if ({name} != NULL) {{
-...
-if (!ndt_is_c_contiguous(gmk_input_{name}.type))
-  free({name});
-}} else gmk_success = -1; /* if ({name} != NULL) */
-'''*(is_input*kind_is('C')),
-                '''\
-if (ndt_is_f_contiguous(gmk_input_{name}.type))
   {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
-else
-  {name} = ({ctype}*)xndtools_fcopy(&gmk_input_{name}, gmk_ctx); // TODO: is this ever reached?
 if ({name} != NULL) {{
 ...
-if (!ndt_is_f_contiguous(gmk_input_{name}.type))
-  free({name});
+  if (gmk_{name}_copied)
+    free({name});
 }} else gmk_success = -1; /* if ({name} != NULL) */
-'''*(is_input*kind_is('Fortran')),
-                '''NOTIMPLEMENTED_INPUT_STRIDED...''' * is_input*kind_is('Strided'),
-                '''\
-{name} = ({ctype}*)xndtools_copy(&gmk_input_{name}, gmk_ctx);
+'''*(kind_is('Xnd') * (is_c+is_fortran)),
+                    '''
+{name} = ({ctype}*){xndtools_copy}(&gmk_input_{name}, gmk_ctx);
 if ({name} != NULL) {{
 ...
   free({name});
 }} else gmk_success = -1; /* if ({name} != NULL) */
-'''*(is_input*kind_is('Xnd')),
-            # --------------------------------------------------
-            #                   Array arguments - inout
-            # --------------------------------------------------
-                '''NOTIMPLEMENTED_INOUT_C...''' * is_inout*kind_is('C'),
-                '''NOTIMPLEMENTED_INOUT_F...''' * is_inout*kind_is('Fortran'),
-                '''NOTIMPLEMENTED_INOUT_STRIDED...''' * is_inout*kind_is('Strided'),
-                '''NOTIMPLEMENTED_INOUT_XND...''' * is_inout*kind_is('Xnd'),
+''' * is_tensor * (kind_is('Fortran') * is_c + kind_is('C') * is_fortran),
+                    '''NOTIMPLEMENTED_INPUT_STRIDED...''' * (kind_is('Strided') * is_c),   # Xnd handles it
+                    '''NOTIMPLEMENTED_FORTRAN_INPUT_STRIDED...''' * (kind_is('Strided') * is_fortran), # Xnd handles it
+                ] * is_input,
+                # --------------------------------------------------
+                #                   Array arguments - inout
+                # --------------------------------------------------
+                [
+                    '{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});...'*(kind_is('C')*is_c + kind_is('Fortran')*is_fortran + is_vector*(kind_is('C') + kind_is('Fortran'))),
+                    '''\
+if (ndt_{is_contiguous}(gmk_input_{name}.type)) {{
+  {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
+...
+}} else {{
+  ndt_err_format(gmk_ctx, NDT_ValueError, "intent inout argument `{name}` must be {contiguous} [{kernel_name}]");
+  gmk_success = -1; /* if ({name} != NULL) */
+}}
+'''*(kind_is('Xnd') * (is_c+is_fortran)),
+                    '''
+if (0) {{
+...
+}}
+ndt_err_format(gmk_ctx, NDT_ValueError, "incompatible {contiguous} inout tensor argument `{name}` with given kernel {kernel_name} kind");
+gmk_success = -1;
+''' * (is_tensor*(kind_is('Fortran')*is_c + kind_is('C') * is_fortran)),
+                    '''NOTIMPLEMENTED_INOUT_STRIDED...''' * (kind_is('Strided')*is_c),
+                    '''NOTIMPLEMENTED_FORTRAN_INOUT_STRIDED...''' * (kind_is('Strided') * is_fortran),
+                  ] * is_inout,
             # --------------------------------------------------
             #                   Array arguments - inplace
             # --------------------------------------------------
+                [
+                    '{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});...'*(kind_is('C')*is_c + kind_is('Fortran')*is_fortran + is_vector*(kind_is('C') + kind_is('Fortran'))),
+                    '''\
+{name} = ({ctype}*){xndtools_copy}(&gmk_input_{name}, gmk_ctx);
+if ({name} != NULL) {{
+...
+  {xndtools_inv_copy}((const char*){name}, &gmk_input_{name});
+  free({name});
+}} else gmk_success = -1; /* if ({name} != NULL) */
+''' * (is_tensor * ((kind_is('Fortran') * is_c + kind_is('C') * is_fortran))),
                 '''\
-if (ndt_is_c_contiguous(gmk_input_{name}.type))
-  {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
+bool gmk_{name}_copied = !ndt_{is_contiguous}(gmk_input_{name}.type);
+if (gmk_{name}_copied)
+  {name} = ({ctype}*){xndtools_copy}(&gmk_input_{name}, gmk_ctx);
 else
-  {name} = ({ctype}*)xndtools_copy(&gmk_input_{name}, gmk_ctx);
-if ({name} != NULL) {{
-...
-if (!ndt_is_c_contiguous(gmk_input_{name}.type)) {{
-  xndtools_invcpy((const char*){name}, &gmk_input_{name}, false);
-  free({name});
-}}
-}} else gmk_success = -1; /* if ({name} != NULL) */
-''' * is_inplace*kind_is('C'),
-                '''NOTIMPLEMENTED_INPLACE_F...''' * is_inplace*kind_is('Fortran'),
-                '''NOTIMPLEMENTED_INPLACE_STRIDED...''' * is_inplace*kind_is('Strided'),
-                '''
-{name} = ({ctype}*)xndtools_copy(&gmk_input_{name}, gmk_ctx); // returns C contiguous
-if ({name} != NULL) {{
-...
-  xndtools_invcpy((const char*){name}, &gmk_input_{name}, false);
-  free({name});
-}} else gmk_success = -1; /* if ({name} != NULL) */
-''' * is_inplace*kind_is('Xnd'),
-            # --------------------------------------------------
-            #                   Array arguments - input_output
-            # --------------------------------------------------
-                '''
-if (ndt_is_c_contiguous(gmk_input_{name}.type))
   {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
-else
-  {name} = ({ctype}*)xndtools_copy(&gmk_input_{name}, gmk_ctx);
 if ({name} != NULL) {{
 ...
-  xndtools_invcpy((const char*){name}, &gmk_output_{name}, gmk_ctx);
-if (!ndt_is_c_contiguous(gmk_input_{name}.type)) {{
-  free({name});
-}}
+  if (gmk_{name}_copied) {{
+    {xndtools_inv_copy}((const char*){name}, &gmk_input_{name});
+    free({name});
+  }}
 }} else gmk_success = -1; /* if ({name} != NULL) */
-''' * is_input_output*kind_is('C'),
-                '''NOTIMPLEMENTED_INPUT_OUTPUT_F...''' * is_input_output*kind_is('Fortran'),
-                '''NOTIMPLEMENTED_INPUT_OUTPUT_STRIDED...''' * is_input_output*kind_is('Strided'),
-                '''\
+                ''' * ((kind_is('Xnd') * (is_c + is_fortran))),
+                    '''NOTIMPLEMENTED_INPLACE_STRIDED...''' * (kind_is('Strided') * is_c),
+                    '''NOTIMPLEMENTED_FORTRAN_INPLACE_STRIDED...''' * (kind_is('Strided') * is_fortran),
+                ] * is_inplace,
+                # --------------------------------------------------
+                #                   Array arguments - input_output
+                # --------------------------------------------------
+                [
+                    '''\
 {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name});
-xndtools_cpy((char*){name}, &gmk_input_{name}, ndt_is_f_contiguous(gmk_output_{name}.type));...''' * is_input_output*kind_is('Xnd'),
+xndtools_cpy((char*){name}, &gmk_input_{name}, ndt_{is_contiguous}(gmk_input_{name}.type));
+...'''*(kind_is('C')*is_c + kind_is('Fortran')*is_fortran + is_vector*(kind_is('C') + kind_is('Fortran'))),                    
+                    '''\
+bool gmk_{name}_transpose = !ndt_{is_contiguous}(gmk_output_{name}.type);
+if (gmk_{name}_transpose)
+  {name} = ({ctype}*)malloc(xndtools_fixed_nbytes(&gmk_output_{name}));
+else
+  {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name}); // C-contiguous
+
+if ({name} != NULL) {{
+  xndtools_cpy((char*){name}, &gmk_input_{name}, !ndt_{is_contiguous}(gmk_input_{name}.type));
+...
+  if (gmk_{name}_transpose) {{
+     {xndtools_inv_copy}((const char*){name}, &gmk_output_{name});
+     free({name});
+  }}  
+}} else gmk_success = -1; /* if ({name} != NULL) */
+'''*(kind_is('Xnd') * (is_c+is_fortran)),
+                    '''\
+{name} = ({ctype}*){xndtools_copy}(&gmk_input_{name}, gmk_ctx);
+if ({name} != NULL) {{
+...
+  {xndtools_inv_copy}((const char*){name}, &gmk_output_{name});
+  free({name});
+}} else gmk_success = -1; /* if ({name} != NULL) */
+''' * is_tensor * (kind_is('Fortran') * is_c + kind_is('C') * is_fortran),
+                    '''NOTIMPLEMENTED_INPUT_OUTPUT_STRIDED...''' * (kind_is('Strided') * is_c),   # Xnd handles this
+                    '''NOTIMPLEMENTED_FORTRAN_INPUT_OUTPUT_STRIDED...''' * (kind_is('Strided') * is_fortran), # Xnd handles this
+                ] * is_input_output,
             # --------------------------------------------------
             #                   Array arguments - inplace_output
             # --------------------------------------------------
-                '''NOTIMPLEMENTED_INPLACE_OUTPUT_C...''' * is_inplace_output*kind_is('C'),
-                '''NOTIMPLEMENTED_INPLACE_OUTPUT_F...''' * is_inplace_output*kind_is('Fortran'),
-                '''NOTIMPLEMENTED_INPLACE_OUTPUT_STRIDED...''' * is_inplace_output*kind_is('Strided'),
-                '''NOTIMPLEMENTED_INPLACE_OUTPUT_XND...''' * is_inplace_output*kind_is('Xnd'),
+                [
+                    '''\
+{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
+...
+{xndtools_inv_copy}((const char*){name}, &gmk_output_{name});
+'''*(kind_is('C')*is_c + kind_is('Fortran')*is_fortran + is_vector*(kind_is('C') + kind_is('Fortran'))),
+                    '''\
+bool gmk_{name}_input_is_contiguous = ndt_{is_contiguous}(gmk_input_{name}.type);
+if (!gmk_{name}_input_is_contiguous)
+  {name} = ({ctype}*){xndtools_copy}(&gmk_input_{name}, gmk_ctx);
+else
+  {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
+if ({name} != NULL) {{
+...
+  {xndtools_inv_copy}((const char*){name}, &gmk_output_{name});
+  if (!gmk_{name}_input_is_contiguous) {{
+    {xndtools_inv_copy}((const char*){name}, &gmk_input_{name});
+    free({name});
+  }}
+}} else gmk_success = -1; /* if ({name} != NULL) */
+'''*(kind_is('Xnd') * (is_c+is_fortran)),
+                    '''\
+{name} = ({ctype}*){xndtools_copy}(&gmk_input_{name}, gmk_ctx);
+if ({name} != NULL) {{
+...
+  {xndtools_inv_copy}((const char*){name}, &gmk_output_{name});
+  {xndtools_inv_copy}((const char*){name}, &gmk_input_{name});
+  free({name});
+}} else gmk_success = -1; /* if ({name} != NULL) */
+''' * (is_tensor * ((kind_is('Fortran') * is_c + kind_is('C') * is_fortran))),
+                    '''NOTIMPLEMENTED_INPLACE_OUTPUT_STRIDED...''' * (kind_is('Strided')*is_c),               # Xnd handles this
+                    '''NOTIMPLEMENTED_FORTRAN_INPLACE_OUTPUT_STRIDED...''' * (kind_is('Strided')*is_fortran), # Xnd handles this
+                    ] * is_inplace_output,
             # --------------------------------------------------
             #                   Array arguments - inout_output
             # --------------------------------------------------
-                '''NOTIMPLEMENTED_INOUT_OUTPUT_C...''' * is_inout_output*kind_is('C'),
-                '''NOTIMPLEMENTED_INOUT_OUTPUT_F...''' * is_inout_output*kind_is('Fortran'),
-                '''NOTIMPLEMENTED_INOUT_OUTPUT_STRIDED...''' * is_inout_output*kind_is('Strided'),
-                '''NOTIMPLEMENTED_INOUT_OUTPUT_XND...''' * is_inout_output*kind_is('Xnd'),
+                [
+                    '''\
+{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
+...
+{xndtools_inv_copy}((const char*){name}, &gmk_output_{name});
+'''*(kind_is('C')*is_c + kind_is('Fortran')*is_fortran + is_vector*(kind_is('C') + kind_is('Fortran'))),
+                    '''\
+if (ndt_{is_contiguous}(gmk_input_{name}.type)) {{
+  {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_input_{name});
+...
+  {xndtools_inv_copy}((const char*){name}, &gmk_output_{name});
+}} else {{
+  ndt_err_format(gmk_ctx, NDT_ValueError, "intent inout-output argument `{name}` must be {contiguous} [{kernel_name}]");
+  gmk_success = -1; /* if ({name} != NULL) */
+}}
+'''*(kind_is('Xnd') * (is_c+is_fortran)),
+                    '''
+if (0) {{
+...
+}}
+ndt_err_format(gmk_ctx, NDT_ValueError, "incompatible {contiguous} inout-output tensor argument `{name}` with given kernel {kernel_name} kind");
+gmk_success = -1;
+''' * (is_tensor*(kind_is('Fortran')*is_c + kind_is('C') * is_fortran)),
+                    '''NOTIMPLEMENTED_INOUT_OUTPUT_STRIDED...''' * (kind_is('Strided')*is_c),
+                    '''NOTIMPLEMENTED_FORTRAN_INOUT_OUTPUT_STRIDED...''' * (kind_is('Strided')*is_fortran),
+                ] * is_inout_output,
             # --------------------------------------------------
             #                   Array arguments - output
             # --------------------------------------------------
-                '''\
-{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name}); // always contiguous
-...''' * is_output*(kind_is('C')+kind_is('Fortran')+kind_is('Xnd')),
-                '''NOTIMPLEMENTED_OUTPUT_STRIDED...''' * is_output*kind_is('Strided'),
+                [
+                    '{name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name});...'*(kind_is('C')*is_c + kind_is('Fortran')*is_fortran + is_vector*(kind_is('C') + kind_is('Fortran'))),
+                    '''
+{name} = malloc(xndtools_fixed_nbytes(&gmk_output_{name}));
+if ({name} != NULL) {{
+...
+  {xndtools_inv_copy}((const char*){name}, &gmk_output_{name});
+  free({name});
+}} else gmk_success = -1; /* if ({name} != NULL) */
+''' * (is_tensor * ((kind_is('Fortran') * is_c + kind_is('C') * is_fortran))),
+                    '''\
+bool gmk_{name}_transpose = !ndt_{is_contiguous}(gmk_output_{name}.type);
+if (gmk_{name}_transpose)
+  {name} = ({ctype}*)malloc(xndtools_fixed_nbytes(&gmk_output_{name}));
+else
+  {name} = GMK_FIXED_ARRAY_DATA({ctype}, gmk_output_{name});
+if ({name} != NULL) {{
+...
+  if (gmk_{name}_transpose) {{
+     {xndtools_inv_copy}((const char*){name}, &gmk_output_{name});
+     free({name});
+  }}
+}} else gmk_success = -1; /* if ({name} != NULL) */
+''' * ((kind_is('Xnd') * (is_c + is_fortran))),                    
+                    '''NOTIMPLEMENTED_OUTPUT_STRIDED...''' * (kind_is('Strided') * is_c),
+                    '''NOTIMPLEMENTED_FORTRAN_OUTPUT_STRIDED...''' * (kind_is('Strided') * is_fortran),
+
+                ] * is_output,
             # --------------------------------------------------
             #                   Array arguments - hide
             # --------------------------------------------------
-                '''NOTIMPLEMENTED_HIDE_C...''' * is_hide*kind_is('C'),
-                '''NOTIMPLEMENTED_HIDE_F...''' * is_hide*kind_is('Fortran'),
-                '''NOTIMPLEMENTED_HIDE_STRIDED...''' * is_hide*kind_is('Strided'),
-                '''NOTIMPLEMENTED_HIDE_XND...''' * is_hide*kind_is('Xnd'),
-                
-            ]*is_array*-has('value'),
+                    '''\
+                    size_t gmk_{name}_size = {shape_product};
+                    {name} = ({ctype}*)malloc(sizeof({ctype})*gmk_{name}_size);
+...
+free({name});
+''' * is_hide
+            ]*(is_array*-has('value')),
         ],
                 '{name}',
                 ('{depends}','') * has('depends')
@@ -661,16 +775,26 @@ xndtools_cpy((char*){name}, &gmk_input_{name}, ndt_is_f_contiguous(gmk_output_{n
         output_utype = '{sigdims}{type}' * is_outany,
     ),
     variables = dict(
-        sigdims = ('{ellipses}{dimension-list} * ', '{ellipses}')*has('dimension-list'),
+        fortran = ('!', '') * is_fortran,
+        is_contiguous = ('is_f_contiguous', 'is_c_contiguous') * is_fortran,
+        contiguous = ('F-contiguous', 'C-contiguous') * is_fortran,
+        xndtools_copy = ('xndtools_fcopy', 'xndtools_copy') * is_fortran,
+        xndtools_inv_copy = ('xndtools_inv_fcopy', 'xndtools_inv_copy') * is_fortran,
+        #xndtools_fcopy = ('xndtools_copy', 'xndtools_fcopy') * is_fortran,
+        sigdims = ('{ellipses}{fortran}{dimension-list} * ', '{ellipses}')*has('dimension-list'),
         wrapper_name = wrapper_name,
+        shape_product = '{shape-list}',
     ),
     initialize = initialize_argument,
-    join = {'dimension-list': join_dimension_list}
+    join = {'dimension-list': join_dimension_list,
+            'shape-list': join_shape_list,
+    }
 )
 
 source_template['kernels']['arguments']['shape'] = Template(
     dict(
-        dimension = ('{dimension}', 'var') * is_symbolic
+        dimension = ('{dimension}', 'var') * is_symbolic,
+        shape = '{value}',
     )
 )
 

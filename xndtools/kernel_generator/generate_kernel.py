@@ -163,11 +163,15 @@ def get_module_data(config_file, package=None):
                 intent_arguments[intent_name] = split_expression(f.get(intent_name+'_arguments', ''))
             argument_dimensions = split_expression(f.get('dimension', ''))
 
+            fortran_arguments = split_expression(f.get('fortran_arguments', ''))
+            fortran_arguments_C = split_expression(f.get('fortran_arguments_C', ''))
+            fortran_arguments_Fortran = split_expression(f.get('fortran_arguments_Fortran', ''))
+            
             # propagate prototypes to kernels
-            for prototypes_, kinds_ in [
-                    (prototypes_C, ['C']),
-                    (prototypes_Fortran, ['Fortran']),
-                    (prototypes, kinds or default_kinds),
+            for prototypes_, kinds_, fortran_arguments_ in [
+                    (prototypes_C, ['C'], fortran_arguments_C),
+                    (prototypes_Fortran, ['Fortran'], fortran_arguments_Fortran),
+                    (prototypes, kinds or default_kinds, fortran_arguments),
             ]:
                 for prototype in prototypes_:
                     prototype['kernel_name'] = kernel_name
@@ -198,8 +202,16 @@ def get_module_data(config_file, package=None):
                         arg = prototype.get_argument(name)
                         if not arg.is_intent_hide:
                             max_rank = max(max_rank, len(shapes))
+                        if name in fortran_arguments_ and len(shapes)>1:
+                            print('get_module_data: Fortran arguments not implemented in ndtype, skipping. [KERNEL {}]'.format(kernel_name))
+                            continue
+                            prototype.set_argument_fortran(name)
+                        else:
+                            prototype.set_argument_c(name)
+                        a = prototype.get_argument(name)
+                        assert (a.is_c and not a.is_fortran) or (not a.is_c and a.is_fortran)
                     prototype['max_rank'] = max_rank
-                    
+                        
                     for name, depends in depends_map.items():
                         prototype.set_argument_depends(name, depends)
                         
@@ -211,6 +223,9 @@ def get_module_data(config_file, package=None):
                     for arraytype in arraytypes:
                         for kind in kinds_:
                             if arraytype == 'variable' and kind != 'Xnd':
+                                continue
+                            if max_rank < 2 and kind == 'Fortran':
+                                print('get_module_data: Fortran {}-rank kernel is equivalent to C kernel, skipping. [KERNEL {}]'.format(max_rank, kernel_name))
                                 continue
                             for ellipses_ in ellipses:
                                 kernel = deepcopy(prototype)

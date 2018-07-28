@@ -54,6 +54,26 @@ def test_array_range_inplace():
 
     # Strided kernel
     # TODO
+
+def test_array_range_inout():
+    # C kernel
+    a = xnd([1,2,3])
+    r = m.test_array_range_inout(a)
+    assert_equal(r, xnd(6))
+    assert_equal(a, xnd([0,1,2]))
+
+    # F kernel
+    # TODO
+    
+    # Xnd kernel
+    a = xnd([1,2,3,4,5,6,7])
+    x = a[1::2]
+    assert_equal(x, xnd([2,4,6]))
+    with pytest.raises(ValueError, match=r'.* must be C-contiguous .*'):
+        r = m.test_array_range_inout(x)
+
+    # Strided kernel
+    # TODO
     
 def test_array_range_input_output():
     # C kernel
@@ -78,9 +98,61 @@ def test_array_range_input_output():
 
     # Strided kernel
     # TODO
+
+def test_array_range_inplace_output():
+    # C kernel
+    a = xnd([1,2,3])
+    o, r = m.test_array_range_inplace_output(a)
+    assert_equal(r, xnd(6))
+    assert_equal(o, xnd([0,1,2]))
+    assert_equal(a, xnd([0,1,2]))
+
+    # F kernel
+    # TODO
+    
+    # Xnd kernel
+    a = xnd([1,2,3,4,5,6,7])
+    x = a[1::2]
+    assert_equal(x, xnd([2,4,6]))
+    o, r = m.test_array_range_inplace_output(x)
+    assert_equal(r, xnd(12))
+    assert_equal(o, xnd([0,1,2]))
+    assert_equal(x, xnd([0,1,2]))
+    assert_equal(a, xnd([1,0,3,1,5,2,7]))
+
+    # Strided kernel
+    # TODO
+
+def test_array_range_inout_output():
+    # C kernel
+    a = xnd([1,2,3])
+    o, r = m.test_array_range_inout_output(a)
+    assert_equal(r, xnd(6))
+    assert_equal(o, xnd([0,1,2]))
+    assert_equal(a, xnd([0,1,2]))
+
+    # F kernel
+    # TODO
+    
+    # Xnd kernel
+    a = xnd([1,2,3,4,5,6,7])
+    x = a[1::2]
+    assert_equal(x, xnd([2,4,6]))
+    with pytest.raises(ValueError, match=r'.* must be C-contiguous .*'):
+        o, r = m.test_array_range_inout_output(x)
+
+    # Strided kernel
+    # TODO
     
 def test_array_range_output():
     # using C, F, or Xnd kernel if defined
     o, r = m.test_array_range_output(xnd(3))
     assert_equal(r, xnd(0)) # could be random
     assert_equal(o, xnd([0,1,2]))
+
+
+def test_array_range_hide():
+    # using C, F, or Xnd kernel if defined
+    r = m.test_array_range_hide(xnd(3))
+    assert r.type == xnd(0).type
+    # r value is random

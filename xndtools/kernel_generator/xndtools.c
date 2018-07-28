@@ -14,7 +14,7 @@
 /*
   Return number of bytes in fixed dims stack.
  */
-static int64_t get_fixed_nbytes(const xnd_t* stack_ptr) {
+int64_t xndtools_fixed_nbytes(const xnd_t* stack_ptr) {
   int64_t items = 1;
   int64_t itemsize = stack_ptr->type->Concrete.FixedDim.itemsize;
   int ndim = xnd_ndim(stack_ptr);
@@ -36,11 +36,11 @@ int xndtools_cpy(char* dest, const xnd_t* stack_ptr, bool fortran) {
     memcpy(dest, ptr0, itemsize); // avoid broadcasting scalar to 1d array   
     return itemsize;
   } else if (!fortran && ndt_is_c_contiguous(stack_ptr->type)) {
-    int64_t nbytes = get_fixed_nbytes(stack_ptr);
+    int64_t nbytes = xndtools_fixed_nbytes(stack_ptr);
     memcpy(dest, ptr0, nbytes);
     return nbytes;
   } else if (fortran && ndt_is_f_contiguous(stack_ptr->type)) {
-    int64_t nbytes = get_fixed_nbytes(stack_ptr);
+    int64_t nbytes = xndtools_fixed_nbytes(stack_ptr);
     memcpy(dest, ptr0, nbytes);
     return nbytes;
   } else if (ndim>1) {
@@ -102,7 +102,7 @@ int xndtools_cpy(char* dest, const xnd_t* stack_ptr, bool fortran) {
 
 char* xndtools_copy(const xnd_t* stack_ptr, ndt_context_t *ctx) {
   char* target = NULL;
-  int64_t nbytes = get_fixed_nbytes(stack_ptr);
+  int64_t nbytes = xndtools_fixed_nbytes(stack_ptr);
   target = (char*)malloc(nbytes);
   if (target==NULL) {
     ndt_err_format(ctx, NDT_MemoryError,
@@ -126,7 +126,7 @@ char* xndtools_copy(const xnd_t* stack_ptr, ndt_context_t *ctx) {
 
 char* xndtools_fcopy(const xnd_t* stack_ptr, ndt_context_t *ctx) {
   char* target = NULL;
-  int64_t nbytes = get_fixed_nbytes(stack_ptr);
+  int64_t nbytes = xndtools_fixed_nbytes(stack_ptr);
   target = (char*)malloc(nbytes);
   if (target==NULL) {
     ndt_err_format(ctx, NDT_MemoryError,
@@ -155,11 +155,11 @@ int xndtools_invcpy(const char* src, const xnd_t* stack_ptr, bool fortran) {
     memcpy(ptr0, src, itemsize); // avoid broadcasting scalar to 1d array   
     return itemsize;
   } else if (!fortran && ndt_is_c_contiguous(stack_ptr->type)) {
-    int64_t nbytes = get_fixed_nbytes(stack_ptr);
+    int64_t nbytes = xndtools_fixed_nbytes(stack_ptr);
     memcpy(ptr0, src, nbytes);
     return nbytes;
   } else if (fortran && ndt_is_f_contiguous(stack_ptr->type)) {
-    int64_t nbytes = get_fixed_nbytes(stack_ptr);
+    int64_t nbytes = xndtools_fixed_nbytes(stack_ptr);
     memcpy(ptr0, src, nbytes);
     return nbytes;
   } else if (ndim>1) {
@@ -213,3 +213,5 @@ int xndtools_invcpy(const char* src, const xnd_t* stack_ptr, bool fortran) {
   }
   return -1;
 }
+
+
