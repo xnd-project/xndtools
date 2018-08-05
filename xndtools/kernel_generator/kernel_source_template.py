@@ -26,7 +26,7 @@ is_variable = arraytype_is('variable')
 debug = Predicate(lambda data: data.get('debug', False))
 is_scalar = Predicate(lambda data: not (data.get('left_modifier') or data.get('right_modifier')))
 is_scalar_ptr = Predicate(lambda data: data.get('left_modifier')=='*' and not data.get('right_modifier') and data.get('shape') is None)
-is_array = Predicate(lambda data: data.get('left_modifier')=='*' and data.get('shape') is not None)
+is_array = Predicate(lambda data: (data.get('left_modifier')=='*' or data.get('right_modifier')=='[]') and data.get('shape') is not None)
 is_argument = Predicate(lambda data: not data['name'].endswith('_return_value_'))
 need_constraint = Predicate(lambda data: data.get('nout_symbols',0) > 0)
 
