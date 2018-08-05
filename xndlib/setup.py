@@ -31,6 +31,7 @@ kernel_configuration_files = ['example-kernels.cfg',
                               'test_scalar-kernels.cfg',
                               'test_array-kernels.cfg',
                               'test_mixed-kernels.cfg',
+                              'mkl_vml-kernels.cfg'
 ][1:]
 
 ext_modules = []
@@ -38,7 +39,18 @@ for cfg in kernel_configuration_files:
     include_dirs = [NDTYPES_ROOT, XND_ROOT, GUMATH_ROOT, os.path.join(CONDA_PREFIX, 'include')]
     library_dirs = [NDTYPES_ROOT, XND_ROOT, GUMATH_ROOT, os.path.join(CONDA_PREFIX, 'lib')]
     libraries = ["ndtypes", "xnd", "gumath"]
+
+    extra_compile_args = []
+    extra_link_args = []
+    runtime_library_dirs = []
     
+    if cfg.startswith('mkl_'):
+        libraries += ['mkl_intel_ilp64', 'mkl_sequential', 'mkl_core', 'mkl_rt', 'pthread', 'm', 'dl']
+        extra_compile_args += ["-Wextra", "-Wno-missing-field-initializers", "-std=c11", '-DMKL_ILP64', '-m64']
+        extra_link_args += ['-Wl,--no-as-needed']        
+        include_dirs += [os.path.join(MKLROOT, 'include')]
+        library_dirs += [os.path.join(MKLROOT, 'lib')]
+        
     m = generate_module(Namespace(config_file = cfg,
                                   target_language = 'python',
                                   package = 'xndlib',
@@ -49,10 +61,7 @@ for cfg in kernel_configuration_files:
     include_dirs += m['include_dirs']
     sources = m['sources']
     depends = sources + [cfg] + [xndtools.__file__]
-    extra_compile_args = []
-    extra_link_args = []
-    runtime_library_dirs = []
-    
+
     ext = Extension (
       m['extname'],
       include_dirs = include_dirs,
@@ -65,6 +74,7 @@ for cfg in kernel_configuration_files:
       runtime_library_dirs = runtime_library_dirs
     )
     ext_modules.append(ext)
+
     
 def mkl_blas_ext():
     depends = []
@@ -88,7 +98,8 @@ def mkl_blas_ext():
       runtime_library_dirs = runtime_library_dirs
     )
     
-#ext_modules += [mkl_blas_ext()]
+#ext_modules += [mkl_blas_ext()]    
+
 
 setup(
     name='xndlib',
