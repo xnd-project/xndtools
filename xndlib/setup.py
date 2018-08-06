@@ -45,7 +45,8 @@ for cfg in kernel_configuration_files:
     runtime_library_dirs = []
     
     if cfg.startswith('mkl_'):
-        libraries += ['mkl_intel_ilp64', 'mkl_sequential', 'mkl_core', 'mkl_rt', 'pthread', 'm', 'dl']
+        libraries += ['mkl_intel_ilp64', 'mkl_sequential', 'mkl_core', #'mkl_rt',
+                      'pthread', 'm', 'dl']
         extra_compile_args += ["-Wextra", "-Wno-missing-field-initializers", "-std=c11", '-DMKL_ILP64', '-m64']
         extra_link_args += ['-Wl,--no-as-needed']        
         include_dirs += [os.path.join(MKLROOT, 'include')]
