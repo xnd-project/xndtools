@@ -13,19 +13,15 @@ test:
   files:
     - test
   commands:
-    - xnd_tools --helpl
+    - python test/test_xndtools.py
 
 requirements:
   build:
-    - libndtypes ==0.2.0dev3
-    - libxnd ==0.2.0dev3
-    - libgumath ==0.2.0dev3
+    - gumath ==0.2.0dev3
     - ndtypes ==0.2.0dev3
     - xnd ==0.2.0dev3
   run:
-    - libndtypes ==0.2.0dev3
-    - libxnd ==0.2.0dev3
-    - libgumath ==0.2.0dev3
+    - gumath ==0.2.0dev3
     - ndtypes ==0.2.0dev3
     - xnd ==0.2.0dev3
 
