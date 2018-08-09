@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import os, sys
 try:
     from setuptools import setup
