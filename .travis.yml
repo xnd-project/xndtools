@@ -22,7 +22,6 @@ install:
   - source activate test-environment
   - export PREFIX=$CONDA_PREFIX
   - python setup.py install
-  - git clone https://github.com/plures/xndtools.git
   - cd xndtools
   - bash update_xnd.sh
   - python setup.py develop
