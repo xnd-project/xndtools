@@ -1,0 +1,26 @@
+sudo: required
+
+language: python
+python:
+  - 3.6
+
+
+matrix:
+  include:
+    - compiler: gcc
+      before_install:
+        - pip install numpy pytest
+      before_script:
+        - git clone https://github.com/plures/ndtypes.git
+        - git clone https://github.com/plures/xnd.git
+	- git clone https://github.com/plures/gumath.git
+        - cd ndtypes
+        - python3 setup.py build && sudo python3 setup.py install
+        - cd ../xnd
+        - python3 setup.py build && sudo python3 setup.py install
+	- cd ../gumath
+        - python3 setup.py build && sudo python3 setup.py install
+        - cd ..
+      script:
+        - python3 setup.py build && sudo python3 setup.py install
+        - pytest xndtools/
