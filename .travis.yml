@@ -17,14 +17,18 @@ install:
   - conda update -q conda
   # Useful for debugging any issues with conda
   - conda info -a
-
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION pytest
   - source activate test-environment
   - export PREFIX=$CONDA_PREFIX
   - pwd
   - bash update_xnd.sh
+
+before_script:
   - python setup.py develop
+  - cd xndlib && python setup.py develop && cd -
 
 script:
-  - pwd
+  - pytest xndtools/
+  - cd xndlib/ && pytest xndlib --ignore xndlib/tests/test_example.py
+
 
