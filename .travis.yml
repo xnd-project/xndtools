@@ -2,25 +2,27 @@ sudo: required
 
 language: python
 python:
-  - 3.6
+  - "3.6"
+install:
+  - sudo apt-get update
+  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
+      wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
+    else
+      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+    fi
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - hash -r
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update -q conda
+  # Useful for debugging any issues with conda
+  - conda info -a
 
-
-matrix:
-  include:
-    - compiler: gcc
-      before_install:
-        - pip install numpy pytest
-      before_script:
-        - git clone https://github.com/plures/ndtypes.git
-        - git clone https://github.com/plures/xnd.git
-        - git clone https://github.com/plures/gumath.git
-        - cd ndtypes
-        - python3 setup.py build && sudo python3 setup.py install
-        - cd ../xnd
-        - python3 setup.py build && sudo python3 setup.py install
-        - cd ../gumath
-        - python3 setup.py build && sudo python3 setup.py install
-        - cd ..
-      script:
-        - python3 setup.py build && sudo python3 setup.py install
-        - pytest xndtools/
+  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION pytest
+  - source activate test-environment
+  - export PREFIX=$CONDA_PREFIX
+  - python setup.py install
+  - git clone https://github.com/plures/xndtools.git
+  - cd xndtools
+  - bash update_xnd.sh
+  - python setup.py develop
