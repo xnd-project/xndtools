@@ -1,5 +1,5 @@
 
-from xnd_tools.kernel_generator.readers import PrototypeReader
+from xndtools.kernel_generator.readers import PrototypeReader
 
 
 def test_PrototypeReader():

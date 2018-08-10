@@ -1,6 +1,6 @@
 
 
-from xnd_tools.kernel_generator.utils import split_expression
+from xndtools.kernel_generator.utils import split_expression
 
 def test_split_expression():
     assert split_expression('') == []
