@@ -1,7 +1,7 @@
 XND Tools
 ---------
 
-![Build Status](https://travis-ci.org/plures/xndtools.svg?branch=master)
+[![Build Status](https://travis-ci.org/plures/xndtools.svg?branch=master)](https://travis-ci.org/plures/xndtools.svg?branch=master)
 
 XND Tools provides development tools for the XND project. Currently, the following tools are provided:
 
