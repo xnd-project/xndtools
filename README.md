@@ -1,6 +1,8 @@
 XND Tools
 ---------
 
+![Build Status](https://travis-ci.org/plures/xndtools.svg?branch=master)
+
 XND Tools provides development tools for the XND project. Currently, the following tools are provided:
 
 - `xndtools.kernel_generator` - a Python package supporting automatic XND kernel generation using C header files as input.
