@@ -21,5 +21,10 @@ install:
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION pytest
   - source activate test-environment
   - export PREFIX=$CONDA_PREFIX
+  - pwd
   - bash update_xnd.sh
-  - python setup.py install
+  - python setup.py develop
+
+script:
+  - pwd
+
