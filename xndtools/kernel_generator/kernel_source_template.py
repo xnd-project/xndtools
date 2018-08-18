@@ -130,7 +130,7 @@ def join_dimension_list(lst):
     # Prepends ellipses dimension
     return ' * '.join(lst)
 
-def join_shape_list(lst):
+def join_shape_product(lst):
     return '(' + ') * ('.join(lst) + ')'
 
 def join_short_doc_list(lst):
@@ -411,7 +411,9 @@ static int
 #
 
 source_template = Template(
-    dict(c_source = c_source_template),
+    dict(
+        c_source = c_source_template
+    ),
     initialize = initialize_source,
     join = {
         'kernels-list': join_kernels_list,
@@ -423,13 +425,15 @@ source_template = Template(
         'constraint_entering-list': '\n', # not used, to suppress warnigns
         'constraint_leaving-list': '\n',  # not used, to suppress warnigns
         'all_warnings-list': join_warnings_list,
-    }
+    },
+    name = 'source-template',
 )
 
 source_template['typemap_tests'] = Template(
     dict(
         typemap_tests = typemap_tests_template,
-    )
+    ),
+    name = 'source-template/typemap_tests',
     )
 
 wrapper_name = 'gmk_{kernel_name}_{ellipses_name}_{arraytype}_{kind}_{function_name}'
@@ -440,10 +444,7 @@ source_template['kernels'] = Template(
     ],
          constraints = [
              constraints_template * need_constraint,
-         ],
-         constraint_entering = 'DEBUGMSG("Entering {constraint_name}\\n");' * debug,
-         constraint_leaving = 'DEBUGMSG("Leaving {constraint_name}\\n");' * debug,
-         
+             ],
          signatures = '{kernel_name}|{sig}|{nout_symbols}|.{kind} = {wrapper_name}',
          report_wrapper_counter = report_wrapper_counter_template,
          short_doc = '{kernel_name} - "{oneline_description}" @:@ {sig} @:@ {kind}',
@@ -452,6 +453,8 @@ source_template['kernels'] = Template(
          all_warnings = '{warnings-list}',
     ),
     variables = dict(
+        constraint_entering = ('DEBUGMSG("Entering {constraint_name}\\n");','') * debug,
+        constraint_leaving = ('DEBUGMSG("Leaving {constraint_name}\\n");','') * debug,
         wrapper_name = wrapper_name,
         constraint_name = constraint_name,
         empty_input_utype = 'void',
@@ -476,7 +479,8 @@ source_template['kernels'] = Template(
     sort = {
         'body-list': sorted_list,
         #'input_utype-list': postprocess_input_utype_list,
-    }
+    },
+    name = 'source-template/kernels',
 )
 
 source_template['kernels']['arguments'] = Template(
@@ -783,19 +787,21 @@ free({name});
         #xndtools_fcopy = ('xndtools_copy', 'xndtools_fcopy') * is_fortran,
         sigdims = ('{ellipses}{fortran}{dimension-list} * ', '{ellipses}')*has('dimension-list'),
         wrapper_name = wrapper_name,
-        shape_product = '{shape-list}',
+        shape_product = '{shape-list}'*has('shape'),
     ),
     initialize = initialize_argument,
     join = {'dimension-list': join_dimension_list,
-            'shape-list': join_shape_list,
-    }
+            'shape-list': join_shape_product,
+    },
+    name = 'source-template/kernels/arguments',
 )
 
 source_template['kernels']['arguments']['shape'] = Template(
     dict(
         dimension = ('{dimension}', 'var') * is_symbolic,
         shape = '{value}',
-    )
+    ),
+    name = 'source-template/kernels/arguments/shape',
 )
 
 #

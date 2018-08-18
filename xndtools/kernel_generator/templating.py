@@ -80,7 +80,7 @@ def apply_format_map(obj, data, inplace=False):
         try:
             return obj.format_map(data)
         except Exception as msg:
-            print('apply_format_map:\n{}\n-----------------'.format(obj))
+            print('apply_format_map:\n{}\n{}\n-----------------'.format(obj, data.keys()))
             raise
     if isinstance(obj, list):
         lst = []
@@ -298,7 +298,8 @@ class Template(object):
             if isinstance(v, list) and v:
                 subtemplate = self.subtemplates.get(k)
                 if subtemplate is None:
-                    print('{}(name={}).__call__:warning: no sub-template {!r} (available: {})'.format(type(self).__name__, self.name, k, ', '.join(self.subtemplates)))
+                    #print('{}(name={}).__call__:warning: no sub-template {!r} (available: {})'.format(type(self).__name__, self.name, k, ', '.join(self.subtemplates)))
+                    pass
                 elif not callable(subtemplate):
                     print('{}(name={}).__call__:warning: sub-template {!r} not callable'.format(type(self).__name__, self.name, k))
                 else:
