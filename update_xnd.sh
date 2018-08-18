@@ -25,23 +25,26 @@ fi
 
 cd $DIR/ndtypes
 git pull
-./configure --prefix=$PREFIX
-make
-make install
+#make distclean
+#./configure --prefix=$PREFIX
+#make
+#make install
 pip install -U .
 
 cd $DIR/xnd
 git pull
-./configure --prefix=$PREFIX --with-includes=$PREFIX/include
-make
-make install
+#make distclean
+#./configure --prefix=$PREFIX --with-includes=$PREFIX/include
+#make
+#make install
 pip install -U .
 
 cd $DIR/gumath
 git pull
-./configure --prefix=$PREFIX --with-includes=$PREFIX/include
-make
-make install
+#make distclean
+#./configure --prefix=$PREFIX --with-includes=$PREFIX/include
+#make
+#make install
 pip install -U .
 
 cd $CWD
