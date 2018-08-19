@@ -28,8 +28,6 @@ CONDA_PREFIX=os.environ['CONDA_PREFIX']
 MKLROOT = CONDA_PREFIX
 
 kernel_configuration_files = ['example-kernels.cfg',
-                              'test_scalar-kernels.cfg',
-                              'test_array-kernels.cfg',
                               'test_mixed-kernels.cfg',
                               'mkl_vml-kernels.cfg',
                               'mkl_blas-kernels.cfg',
@@ -61,6 +59,7 @@ for cfg in kernel_configuration_files:
                                   target_file = None,
                                   kernels_source_file = None,
     ))
+    if m is None: continue
     include_dirs += m['include_dirs']
     sources = m['sources']
     depends = sources + [cfg] + [xndtools.__file__]
