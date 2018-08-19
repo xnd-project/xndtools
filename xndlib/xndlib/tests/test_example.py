@@ -1,9 +1,12 @@
-
+import pytest
 from xnd import xnd
-import example as m
-
-print(dir(m))
-
+try:
+    import example as m
+    skip_reason = ''
+except ImportError as msg:
+    m = None
+    skip_reason = f'Failed to import example: {msg}'
+    
 def v(obj):
     return obj.type, obj.value
 
@@ -16,6 +19,7 @@ _ = xnd_data()
 def _test_no_input(): # TODO of gumath
     assert _+ m.no_input() == _+ xnd(2018) # segfaults
 
+@pytest.mark.skipif(m is None, reason=skip_reason)
 def test_no_output():
     assert m.no_output.kernels
     
@@ -39,6 +43,7 @@ def _test_no_output_out(): # TODO of gumath
     r = m.no_output_out() # segfaults
     assert _+r == _+xnd(2019, type='int32')
 
+@pytest.mark.skipif(m is None, reason=skip_reason)
 def test_no_output_in_out():
     x = xnd(123, type='int32')
     r = m.no_output_in_out(x)
@@ -54,7 +59,8 @@ def test_no_output_in_out():
     r = m.no_output_in_out(x)
     assert _+x == _+xnd([[2019]*3,[2019]*2], type='var(offsets=[0,2]) * var(offsets=[0,3,5]) * int32')
     assert _+r == _+x
-        
+
+@pytest.mark.skipif(m is None, reason=skip_reason)
 def test_scalar_intent_in():
     assert _+ m.scalar_intent_in(xnd(1.0)) == _+ xnd(2.0)
     assert _+ m.scalar_intent_in(xnd(1, type='int32')) == _+ xnd(2, type='int32')
@@ -66,14 +72,16 @@ def test_scalar_intent_in():
     ndt_type = 'var(offsets=[0,2]) * var(offsets=[0,1,3]) * int32'
     x = xnd([[1],[11,12]], type=ndt_type)
     assert _+m.scalar_intent_in(x) == _+xnd([[2],[12,13]],type=ndt_type)
-    
+
+@pytest.mark.skipif(m is None, reason=skip_reason)
 def test_scalar_ptr_intent_in():
     assert _+ m.scalar_ptr_intent_in(xnd(1.0)) == _+ xnd(2.0)
     assert _+ m.scalar_ptr_intent_in(xnd(1, type='int32')) == _+ xnd(2, type='int32')
     assert _+ m.scalar_ptr_intent_in(xnd([1.0, 2.0])) == _+ xnd([2.0, 3.0])
     x = xnd([[1.0],[11.0,12.0]])
     assert _+m.scalar_intent_in(x) == _+xnd([[2.0],[12.0,13.0]])
-    
+
+@pytest.mark.skipif(m is None, reason=skip_reason)
 def test_array_intent_in():
     assert _+ m.array_intent_in(xnd([1.0, 2.0])) == _+ xnd(3.0)
     assert _+ m.array_intent_in(xnd([1, 2], type='2 * int32')) == _+ xnd(3, type='int32')
@@ -116,7 +124,8 @@ def test_array_intent_in():
     if 0:
         x = xnd([[1.0, 2.0, 3.0, 4.0, 5.0], [10.0, 20.0, 30.0, 40.0, 50.0, 60.0]]) # var * var * float64
         assert _+m.array_intent_in(x) == _ + xnd([6.0, 70.0])
-    
+
+@pytest.mark.skipif(m is None, reason=skip_reason)
 def test_array_2d_intent_in():
     # array_2d_intent_in returns the sum of the first and the last element in first row
     a = xnd([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], type='2 * 3 * float64')
@@ -144,7 +153,8 @@ def test_array_2d_intent_in():
     assert _+ (m.array_2d_intent_in(a)) == _+ xnd(6.0)
     assert _+ (m.array_2d_intent_in(a[1::2])) == _+ xnd(620.0)
     assert _+ (m.array_2d_intent_in(a[1::2,1::2])) == _+ xnd(62.0)
-    
+
+@pytest.mark.skipif(m is None, reason=skip_reason)
 def test_array_intent_out():
     n = xnd(4, type='int32')
     r = m.array_intent_out(n)
@@ -166,6 +176,7 @@ def test_array_intent_out():
     r = m.array_intent_out(n)
     assert _+r == _+xnd([[0,1,2],[0,1,0]], type='2 * 3 * float64')
 
+@pytest.mark.skipif(m is None, reason=skip_reason)
 def test_array_intent_in_out():
     x = xnd([1,2,3,4], type='4 * float64')
     r = m.array_intent_in_out(x)

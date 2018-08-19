@@ -125,15 +125,21 @@ The ``[MODULE]`` section may define the following keys::
 The definitions of the keys are as follows:
   
 ``typemaps:``
+
   Specify mapping between C type specifications used in C prototypes
-  and canonical types in the form ``<typename><bitwidth>``.  For
-  instance::
+  and canonical types in the form ``<typename><bitwidth>``.
+  For instance::
 
     typemaps:
       double:float64
       float:float32
       MKL_INT:int64
 
+  The following canonical types are defined::
+
+    void, bool, int8, int16, ..., int128, uint8, uint16, ..., uint128
+    float16, float32, ..., float128, complex32, complex64, ..., complex512
+      
   The command ``xnd_tools config ...`` is able to generate typemaps
   for all standard C primitive types.
 
@@ -143,7 +149,7 @@ The definitions of the keys are as follows:
   gmk_test_<modulename>_typemaps(ndt_context_t *)`` that will raise
   runtime error when ``sizeof(<C type spec>)`` is not equal to
   ``sizeof(<typename><bitwidth>)``.
-
+  
 ``kinds:``
   Specify default kinds of kernels. ``[KERNEL]`` section may override this key.
   The comma-separated list of supported kernel kinds are:
@@ -181,10 +187,13 @@ The definitions of the keys are as follows:
   Specify a list of include file directories to be used when compiling
   kernel source code. The directory paths may include:
   
-  - environment variables in the form ``$<ENVIRONMENT VARIABLE NAME>``
+  - environment variables in the form ``${<ENVIRONMENT_VARIABLE_NAME>}``
+  - environment variables in the form ``${<ENVIRONMENT_VARIABLE_NAME>|<default value>}``
   - ``<prefix>`` that will be replaced with ``sys.prefix``
   - ``<site>`` that will be replaced with the output of ``distutils.sysconfig.get_python_lib()``.
 
+  All relative paths are relative to the location of given configuration file.
+    
 ``includes:``
 
   Specify a list of header file names to be used in the header of
@@ -280,10 +289,24 @@ The definitions of the keys are as follows:
 ``fortran:``, ``fortran[C]:``, ``fortran[Fortran]:``
 
   Specify a comma-separated list of C function arguments that have
-  intent ``fortran`` (default intent of all arguments is ``c``).
-  The ``[C|Fortran]`` parts are used when ``prototypes[C|Fortran]`` are specified.
-  Intent ``fortran`` means that the C functions expects the argument
-  to be F-contiguous.
+  intent ``fortran`` (default intent of all arguments is ``c``).  The
+  ``[C|Fortran]`` parts are used when ``prototypes[C|Fortran]`` are
+  specified.  Intent ``fortran`` means that the C functions expects
+  the argument to be F-contiguous. The intent ``fortran`` can be used
+  only for arrays with more than 1 dimensions.
+
+Only the following combinations of argument intents are allowed for a
+given C function argument::
+
+  input
+  inplace
+  inout
+  output
+  hide
+  input & output
+  inout & output
+  inplace & output
+  hide & output - equivalent to output
 
 The C function arguments specified in intent keys may be specified in the
 following forms:
@@ -301,5 +324,7 @@ following forms:
       
 - ``<argument name>(<shape-list>)`` - used for array arguments to
   specify the shape. The ``<shape-list>`` is a comma-separated list of
-  valud C expressions or ``len(...)`` or ``shape(...)``.
+  valud C expressions or ``len(...)`` or ``shape(...)``. All arguments
+  that are specified without shape information, are considered as
+  scalar arguments.
 

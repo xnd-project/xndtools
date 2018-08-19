@@ -6,12 +6,13 @@
 import os
 import sys
 import re
+import warnings
 from glob import glob
 from copy import deepcopy
 from collections import defaultdict
 import pprint
 from .readers import PrototypeReader, load_kernel_config
-from .utils import NormalizedTypeMap, split_expression, intent_names, prettify
+from .utils import NormalizedTypeMap, split_expression, intent_names, prettify, resolve_path
 from .kernel_source_template import source_template
 
 def update_argument_maps(expr, depends_map, values_map, shapes_map, arguments):
@@ -41,8 +42,11 @@ def update_argument_maps(expr, depends_map, values_map, shapes_map, arguments):
 
 def apply_typemap(prototype, typemap, typemap_tests):
     orig_type = prototype['type']
+
     prototype['type'] = normal_type = typemap(orig_type)
-    prototype['ctype'] = c_type = normal_type + '_t'
+    #prototype['ctype'] = c_type = normal_type + '_t'
+    c_type = normal_type + '_t'
+    prototype['ctype'] = orig_type
     zero = typemap.get_zero(normal_type)
     if zero is not None:
         prototype['ctype_zero'] = zero
@@ -52,7 +56,9 @@ def apply_typemap(prototype, typemap, typemap_tests):
     for arg in prototype['arguments']:
         orig_type = arg['type']
         arg['type'] = normal_type = typemap(orig_type)
-        arg['ctype'] = c_type = normal_type + '_t'
+        #arg['ctype'] = c_type = normal_type + '_t'
+        c_type = normal_type + '_t'
+        arg['ctype'] = orig_type
         zero = typemap.get_zero(normal_type)
         if zero is not None:
             arg['ctype_zero'] = zero
@@ -86,6 +92,10 @@ def generate_kernel(config_file,
 
 def get_module_data(config_file, package=None):
     config = load_kernel_config(config_file)
+    if config is None:
+        return
+    config_dir = os.path.dirname(config_file)
+    
     reader = PrototypeReader()    
     current_module = None
     xndtools_datadir = os.path.dirname(__file__)
@@ -117,15 +127,15 @@ def get_module_data(config_file, package=None):
                 line = line.strip()
                 if not line or line.startswith('#'):
                     continue
-                include_dirs.append(line)
+                include_dirs.append(resolve_path(line, prefix=config_dir))
 
             for line in current_module.get('sources', '').splitlines():
                 line = line.strip()
                 if not line or line.startswith('#'):
                     continue
-                sources.append(line)
+                sources.append(resolve_path(line, prefix=config_dir))
 
-            default_debug = bool(current_module.get('debug', default_debug_value))
+            default_debug = bool(current_module.get('debug', default_debug_value)) # TODO: debug should be command line flag
             default_kinds = split_expression(current_module.get('kinds', default_kinds_value))
             default_ellipses = split_expression(current_module.get('ellipses', default_ellipses_value))
             default_arraytypes = split_expression(current_module.get('arraytypes', default_arraytypes_value))
@@ -136,14 +146,29 @@ def get_module_data(config_file, package=None):
                 #print ('skipping', section)
                 continue
             kernel_name = section.split(maxsplit=1)[1].strip()
+            for k in list(f.keys()):
+                k_new = None
+                if '_arguments' in k: k_new = k.replace('_arguments', '')
+                elif k == 'prototypes_C': k_new = 'prototypes[C]'
+                elif k == 'prototypes_Fortran': k_new = 'prototypes[Fortran]'
+                elif k == 'fortran_C': k_new = 'fortran[C]'
+                elif k == 'fortran_Fortran': k_new = 'fortran[Fortran]'
+                if k_new is not None:
+                    f[k_new] = f[k]
+                    del f[k]
+                    warnings.warn(f"usage of `{k}` key is deprecated, use `{k_new}` instead (in {config_file}:{kernel_name})",
+                                  DeprecationWarning, stacklevel=2)
+                if k == 'dimension':
+                    warnings.warn(f"usage of `{k}` key is deprecated, specify argument {k} in appropiate intent list (in {config_file}:{kernel_name})",
+                                  DeprecationWarning, stacklevel=2)
             description = f.get('description','').strip()
 
             prototypes = reader(f.get('prototypes',''))
-            prototypes_C = reader(f.get('prototypes_C', ''))
-            prototypes_Fortran = reader(f.get('prototypes_Fortran',''))
+            prototypes_C = reader(f.get('prototypes[C]', ''))
+            prototypes_Fortran = reader(f.get('prototypes[Fortran]',''))
 
             if not (prototypes or prototypes_C or prototypes_Fortran):
-                print('get_module_data: no prototypes|prototypes_C|prototypes_Fortran defined in [KERNEL {}]'.format(kernel_name))
+                print('get_module_data: no prototypes|prototypes[C]|prototypes[Fortran] defined in [KERNEL {}]'.format(kernel_name))
                 continue
 
             debug = bool(f.get('debug', default_debug))
@@ -160,12 +185,12 @@ def get_module_data(config_file, package=None):
             # get argument intents and shape information
             intent_arguments = {}
             for intent_name in intent_names:
-                intent_arguments[intent_name] = split_expression(f.get(intent_name+'_arguments', ''))
+                intent_arguments[intent_name] = split_expression(f.get(intent_name, ''))
             argument_dimensions = split_expression(f.get('dimension', ''))
 
-            fortran_arguments = split_expression(f.get('fortran_arguments', ''))
-            fortran_arguments_C = split_expression(f.get('fortran_arguments_C', ''))
-            fortran_arguments_Fortran = split_expression(f.get('fortran_arguments_Fortran', ''))
+            fortran_arguments = split_expression(f.get('fortran', ''))
+            fortran_arguments_C = split_expression(f.get('fortran[C]', ''))
+            fortran_arguments_Fortran = split_expression(f.get('fortran[Fortran]', ''))
             
             # propagate prototypes to kernels
             for prototypes_, kinds_, fortran_arguments_ in [
