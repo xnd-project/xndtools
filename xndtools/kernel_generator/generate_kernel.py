@@ -10,6 +10,7 @@ import warnings
 from glob import glob
 from copy import deepcopy
 from collections import defaultdict
+from distutils.sysconfig import get_python_lib
 import pprint
 from .readers import PrototypeReader, load_kernel_config
 from .utils import NormalizedTypeMap, split_expression, intent_names, prettify, resolve_path
@@ -90,7 +91,7 @@ def generate_kernel(config_file,
     return dict(config_file = config_file,
                 sources = [target_file.name] + data['sources'])
 
-def get_module_data(config_file, package=None):
+def get_module_data(config_file):
     config = load_kernel_config(config_file)
     if config is None:
         return
@@ -98,8 +99,13 @@ def get_module_data(config_file, package=None):
     
     reader = PrototypeReader()    
     current_module = None
+
+    site_dir = get_python_lib()
     xndtools_datadir = os.path.dirname(__file__)
-    include_dirs = [xndtools_datadir]
+    libraries = ['gumath', 'xnd', 'ndtypes']
+    include_dirs = [os.path.join(site_dir, _m) for _m in libraries] + [xndtools_datadir]
+    library_dirs = [os.path.join(site_dir, _m) for _m in libraries]
+    
     sources = list(glob(os.path.join(xndtools_datadir, '*.c')))
     kernels = []
     typemap_tests = set()
@@ -280,6 +286,8 @@ def get_module_data(config_file, package=None):
         includes = '\n'.join(l),
         #header_code = current_module.get('header_code', ''),
         include_dirs = include_dirs,
+        library_dirs = library_dirs,
+        libraries = libraries,
         sources = sources,
         kernels = kernels,
         typemap_tests = list([dict(orig_type=o[0], normal_type=o[1]) for o in typemap_tests]),

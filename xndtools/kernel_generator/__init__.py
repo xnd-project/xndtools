@@ -95,6 +95,8 @@ def generate_module(args):
     if args.source_dir is None:
         args.source_dir = ''
     source_dir = args.source_dir
+    if not os.path.isdir(source_dir):
+        os.makedirs(source_dir)
     sources = []
     if args.kernels_source_file is None:
         from xndtools.kernel_generator.generate_kernel import generate_kernel

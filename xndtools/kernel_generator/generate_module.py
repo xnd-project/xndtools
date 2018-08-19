@@ -12,7 +12,7 @@ def generate_module(config_file,
                     source_dir = '',
                     package = None,
                     sources = []):
-    module_data = get_module_data(config_file, package=package)
+    module_data = get_module_data(config_file)
     module_data['language'] = target_language
     if target_file is None:
         target_file = os.path.join(source_dir, '{module_name}-{language}.c'.format(**module_data))
@@ -24,13 +24,17 @@ def generate_module(config_file,
     f.write(module_source)
     f.close()
     print('Created {!r}'.format(target_file))
+
+    extname = module_data['module_name']
+    if package is not None:
+        extname = package + '.' + extname
     
     return dict(config_file = config_file,
                 sources = [target_file] + sources,
-                include_dirs = [
-                    os.path.dirname(__file__), # location of pygumath.c
-                ] + module_data['include_dirs'],
-                extname = module_data['module_name'],
+                include_dirs = module_data['include_dirs'],
+                library_dirs = module_data['library_dirs'],
+                libraries = module_data['libraries'],
+                extname = extname,
                 language = target_language)
     
 pymodule_template = '''
