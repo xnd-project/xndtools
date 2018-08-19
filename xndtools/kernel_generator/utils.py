@@ -1,7 +1,10 @@
 
 import re
 import ctypes
-
+import sys
+import distutils.sysconfig
+import os
+import warnings
 
 intent_names = ['input', 'inplace', 'inout', 'output', 'hide']
 
@@ -26,8 +29,6 @@ supported_intent_lst = [
     ('inplace', 'output'), #
     ('hide',    'output'), # same as output            
 ]
-
-#TODO: c and fortran intents
 
 def is_intent_inany(data): return data.get('intent',()) in [('input',),('inplace',),('inout',),('input','output'),('inplace','output'),('inout','output')]
 def is_intent_outany(data): return data.get('intent',()) in [('output',),('input','output'),('inplace','output'),('inout','output')]
@@ -477,6 +478,42 @@ def prettify(source, target='c', skip_emptylines=True):
         return '\n'.join(lines)
     return source
 
+def resolve_path(path, prefix = None, normpath = True):
+    """Apply environment variables to path and resolve <...>
+    substitutions, return normalized path.
+
+    Parameters
+    ----------
+    path : str
+      Specify path containing slashes as path separators,
+      `${...|...}` substrings and `<...>` substrings.
+    prefix : {str, None}
+      Specify prefix for path
+
+    Returns
+    -------
+    path : str
+      Resolved path.
+    """
+    sys_prefix = sys.prefix
+    site = distutils.sysconfig.get_python_lib()
+    path = path.replace('<prefix>', sys_prefix).replace('<site>', site)
+    def repl_env(mobj):
+        name = mobj.group(0)[2:-1]
+        default = None
+        if '|' in name:
+            name, default = name.split('|',1)
+        value = os.environ.get(name, default)
+        if value is not None:
+            return value
+        warnings.warn(f'resolve_path: environment variable {name} not defined.', stacklevel=4)
+        return mobj.group(0)
+    path = re.sub(r'[$][{]([a-zA-Z_][a-zA-Z_\d]*([|][^}]*|))[}]', repl_env, path)
+    if not os.path.isabs(path) and prefix is not None:
+        path = os.path.join(prefix, path)
+    if normpath:
+        path = os.path.normpath(path)
+    return path
 
 def test_prettify():
     source = '''
