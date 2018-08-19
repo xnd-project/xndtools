@@ -9,6 +9,7 @@
 
 void test_scalar(long a)
 {
+  (void) a;
   /* do nothing */
 }
 

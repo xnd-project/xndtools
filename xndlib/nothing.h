@@ -2,8 +2,8 @@
 
 //void vsNothing(const int n, const float a[], float r[]);
 //void vdNothing(const int n, const double a[], double r[]);
-#define vsNothing(n,a,r)
-#define vdNothing(n,a,r)
+#define vsNothing(n,a,r) (void)n; (void)a; (void)r;
+#define vdNothing(n,a,r) (void)n; (void)a; (void)r;
 
 #define vsCopy(n,a,r) memcpy(r, a, n*sizeof(float));
 #define vdCopy(n,a,r) memcpy(r, a, n*sizeof(double));

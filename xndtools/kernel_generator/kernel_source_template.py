@@ -362,6 +362,9 @@ if (!{wrapper_name}_counter)
 constraints_template = '''
 static int 
 {constraint_name}(int64_t *gmk_shapes, const void *gmk_args, ndt_context_t *gmk_ctx) {{
+  (void)gmk_shapes;
+  (void)gmk_args;
+  (void)gmk_ctx;
   {constraint_entering}
   {constraint_declarations-list}
   {constraints}
@@ -383,6 +386,8 @@ kernel_template = '''
 static int {wrapper_name}_counter = 0;
 static int
 {wrapper_name}(xnd_t gmk_stack[], ndt_context_t *gmk_ctx) {{
+  (void)gmk_stack;
+  (void)gmk_ctx;
   {wrapper_name}_counter += 1;
   {entering}
   int gmk_success = 0;
