@@ -20,6 +20,10 @@ requirements:
     - gumath ==0.2.0dev3
     - ndtypes ==0.2.0dev3
     - xnd ==0.2.0dev3
+  host:
+    - gumath ==0.2.0dev3
+    - ndtypes ==0.2.0dev3
+    - xnd ==0.2.0dev3
   run:
     - gumath ==0.2.0dev3
     - ndtypes ==0.2.0dev3
