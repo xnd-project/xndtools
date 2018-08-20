@@ -15,4 +15,5 @@ Developer notes on xnd project.
 .. toctree::
 
    notes1.rst
+   notes2.rst
 
