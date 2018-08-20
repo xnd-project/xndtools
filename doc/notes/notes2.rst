@@ -124,7 +124,7 @@ Let us introduce the following notations:
 ``is_c_contiguous(A) -> bool``, ``is_f_contiguous(A) -> bool``
   Functions that test whether ``A`` is C- or F-contiguous.
 
-``copy(A) -> T*``
+``ccopy(A) -> T*``
   A function that returns newely allocated memory and copies ``A``
   content to it in C-contiuous way. Caller is responsible freeing the
   memory.
@@ -139,12 +139,77 @@ Let us introduce the following notations:
 
 ``inv_fcopy(a, A)``
   A function that copies F-contiguous data in ``a`` to ``A``.
- 
-In the following are presented the algorithms that `xndtools` kernel
-generator implements.
 
-Fortran kernel, F-contiguous tensor or C kernel, C-contiguous tensor
-````````````````````````````````````````````````````````````````````
+``nbytes(A)``
+  A function that returns the size of ``A`` in bytes.
+
+In the following, ``copy`` is ``fcopy`` for Fortran kernels and
+``ccopy`` for C kernels.  Similarly, ``is_contiguous`` is
+``is_f_contiguous`` for Fortran kernels and ``is_c_contiguous`` for C
+kernels.
+  
+In the following are presented the algorithms that `xndtools` kernel
+generator implements for particular type of arguments.
+
+All kernels: scalars
+````````````````````
+
+``input|inplace|inout: s``::
+
+  s = get_data_value(S)
+  cfunc(s)
+
+``input|inplace|inout,output: s``::
+
+  s = *get_data_ptr(S)
+  cfunc(s)
+  *get_data_ptr(S) = s
+
+``output: s``::
+
+  s = 0
+  cfunc(s)
+  *get_data_ptr(S) = s
+
+``hide: s``::
+
+  s = 0
+  cfunc(s)
+
+``input|inplace|inout: s = s0``::
+
+  if is_na(S):
+    s = s0
+  else:
+    s = get_data_value(S)
+  cfunc(s)
+
+``input|inplace|inout,output: s = s0``::
+
+  if is_na(S):
+    s = s0
+  else:
+    s = *get_data_ptr(S)
+  cfunc(s)
+  *get_data_ptr(S) = s
+
+``output: s = s0``::
+
+  s = s0
+  cfunc(s)
+  *get_data_ptr(S) = s
+
+``hide: s = s0``::
+
+  s = s0
+  cfunc(s)
+
+Note: for scalars with ``inplace|inout|output`` intent the C function
+is in the form ``cfunc(*s)`` and the corresponding calls are in a form
+``cfunc(&a)``.
+  
+Fortran kernel: F-contiguous tensor, or C kernel: C-contiguous tensor
+`````````````````````````````````````````````````````````````````````
 
 ``input|inplace|inout: a``::
 
@@ -156,9 +221,9 @@ Fortran kernel, F-contiguous tensor or C kernel, C-contiguous tensor
   a = get_data_ptr(O)
   cfunc(a);
 
-``hide: a = new(<nbytes>)`` `[NOT IMPLEMENTED]`::
+``hide: a``::
 
-  a = malloc(sizeof(T)*<nbytes>)
+  a = malloc(sizeof(T)*<shape-product>)
   if a != NULL:
     cfunc(a);
     free(a)
@@ -166,42 +231,42 @@ Fortran kernel, F-contiguous tensor or C kernel, C-contiguous tensor
 
 ``input|inplace|inout, output: a``::
 
-  a = get_data_ptr(A)
+  a = get_data_ptr(O)
+  inv_copy(a, A)
   cfunc(a);
-  inv_<c|f>copy(a, O)
 
 
-Xnd kernel, C- or F-contiguous tensor or C-contiguous vector
+Xnd kernel: C- or F-contiguous tensor or C-contiguous vector
 ````````````````````````````````````````````````````````````
 
 ``input: a``::
 
-  if is_<c|f>_contiguous(A):
+  if is_contiguous(A):
     a = get_data_ptr(A)
   else:
-    a = <c|f>copy(A)
+    a = copy(A)
   if a != NULL:
     cfunc(a);
-    if not is_<c|f>_contiguous(A):
+    if not is_contiguous(A):
       free(a)
   else: <memory-error>
 
 ``inplace: a``::
 
-  if is_<c|f>_contiguous(A):
+  if is_contiguous(A):
     a = get_data_ptr(A)
   else:
-    a = <c|f>copy(A)
+    a = copy(A)
   if a != NULL:
     cfunc(a);
-    inv_<c|f>copy(a, A)
-    if not is_<c|f>_contiguous(A):
+    if not is_contiguous(A):
+      inv_copy(a, A)
       free(a)
   else: <memory-error>
 
 ``inout: a``::
 
-  if is_<c|f>_contiguous(A):
+  if is_contiguous(A):
     a = get_data_ptr(A)
     cfunc(a);
   else: <value-error>  
@@ -211,52 +276,60 @@ Xnd kernel, C- or F-contiguous tensor or C-contiguous vector
   a = malloc(sizeof(T)*nbytes(O))
   if a != NULL:
     cfunc(a);
-    inv_<c|f>copy(a, O)
+    inv_copy(a, O)
     free(a)
   else: <memory-error>
 
   TODO: optimize when ndtypes will support F-contiguous O
     
-``hide: a = new(<nbytes>)`` `[NOT IMPLEMENTED]`::
+``hide: a``::
 
-  a = malloc(sizeof(T)*<nbytes>)
+  a = malloc(sizeof(T)*<A-shape-product>)
   if a != NULL:
     cfunc(a);
     free(a)
   else: <memory-error>
 
-``input,output: a`` `[NOT IMPLEMENTED]`::
+``input,output: a``::
 
-  if is_<c|f>_contiguous(A):
+  if is_contiguous(A):
     a = get_data_ptr(A)
   else:
-    a = <c|f>copy(A)
+    a = copy(A)
   if a != NULL:
     cfunc(a);
-    inv_<c|f>copy(a, O)
-    if not is_<c|f>_contiguous(A):
+    inv_copy(a, O)
+    if not is_contiguous(A):
       free(a)
   else: <memory-error>
 
-``inplace,output: a`` `[NOT IMPLEMENTED]`::
+``inplace,output: a``::
 
-  if is_<c|f>_contiguous(A):
+  if is_contiguous(A):
     a = get_data_ptr(A)
   else:
-    a = <c|f>copy(A)
+    a = copy(A)
   if a != NULL:
     cfunc(a);
-    inv_<c|f>copy(a, A)
-    inv_<c|f>copy(a, O)
-    if not is_<c|f>_contiguous(A):
+    inv_copy(a, O)
+    if not is__contiguous(A):
+      inv_copy(a, A)
       free(a)
   else: <memory-error>
 
-``inout,output: a`` `[NOT IMPLEMENTED]`::
+``inout,output: a``::
 
-  if is_<c|f>_contiguous(A):
+  if is_contiguous(A):
     a = get_data_ptr(A)
     cfunc(a);
-    inv_<c|f>copy(a, O)
+    inv_copy(a, O)
   else: <value-error>
 
+All kernels, C function return value
+````````````````````````````````````
+
+For non-void functions the return value is assigned to the extra
+output argument ``R`` of the kernel. Such argument is always the last one::
+
+  r = cfunc(...)
+  *get_data_ptr(R) = r

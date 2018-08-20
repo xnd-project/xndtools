@@ -144,7 +144,7 @@ char* xndtools_fcopy(const xnd_t* stack_ptr, ndt_context_t *ctx) {
 }
 
 /*
-  Copy C contiguous data to fixed dims stack (possibly sliced).
+  Copy C or Fortran contiguous data to fixed dims stack (possibly sliced).
   Return number of bytes copied.
  */
 int xndtools_invcpy(const char* src, const xnd_t* stack_ptr, bool fortran) {

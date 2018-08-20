@@ -101,6 +101,7 @@ def get_module_data(config_file):
     current_module = None
 
     site_dir = get_python_lib()
+    prefix_dir = sys.prefix
     xndtools_datadir = os.path.dirname(__file__)
     libraries = ['gumath', 'xnd', 'ndtypes']
     include_dirs = [os.path.join(site_dir, _m) for _m in libraries] + [xndtools_datadir]
@@ -226,6 +227,8 @@ def get_module_data(config_file):
                         name = update_argument_maps(name_shape, depends_map, values_map, shapes_map, arguments)
 
                     max_rank = 0
+                    has_C_tensors = False
+                    has_F_tensors = False
                     for name, shapes in shapes_map.items():
                         for shape in shapes:
                             update_argument_maps((name, shape), depends_map, values_map, shapes_map, arguments)
@@ -233,16 +236,39 @@ def get_module_data(config_file):
                         arg = prototype.get_argument(name)
                         if not arg.is_intent_hide:
                             max_rank = max(max_rank, len(shapes))
-                        if name in fortran_arguments_ and len(shapes)>1:
-                            print('get_module_data: Fortran arguments not implemented in ndtype, skipping. [KERNEL {}]'.format(kernel_name))
-                            continue
-                            prototype.set_argument_fortran(name)
-                        else:
-                            prototype.set_argument_c(name)
-                        a = prototype.get_argument(name)
-                        assert (a.is_c and not a.is_fortran) or (not a.is_c and a.is_fortran)
+                            if len(shapes)>1:
+                                if name in fortran_arguments_:
+                                    has_F_tensors = True
+                                else:
+                                    has_C_tensors = True
+
+                    # note that `has_?_tensors` include also output arguments.
+                    allowed_kinds = []
+                    if has_F_tensors and has_C_tensors:
+                        allowed_kinds = ['Xnd']
+                    elif has_F_tensors:
+                        allowed_kinds = ['Xnd', 'Fortran']
+                    elif has_C_tensors:
+                        allowed_kinds = ['Xnd', 'C']
+                    else:
+                        allowed_kinds = ['Xnd', 'C']
                     prototype['max_rank'] = max_rank
-                        
+                    
+                    if max_rank > 1:
+                        for name, shapes in shapes_map.items():
+                            if len(shapes)>1:
+                                if name in fortran_arguments_:
+                                    prototype.set_argument_fortran(name)
+                                else:
+                                    prototype.set_argument_c(name)
+                            else:
+                                prototype.set_argument_c(name)
+                            a = prototype.get_argument(name)
+                            assert (a.is_c and not a.is_fortran) or (not a.is_c and a.is_fortran)
+                    elif fortran_arguments_:
+                        print('get_module_data: `fortran: {}` not used for kernels with rank[={}] less than 2. [KERNEL {}]'
+                              .format(', '.join(fortran_arguments_), max_rank, kernel_name))
+
                     for name, depends in depends_map.items():
                         prototype.set_argument_depends(name, depends)
                         
@@ -250,14 +276,18 @@ def get_module_data(config_file):
                         prototype.set_argument_value(name, value)
 
                     input_args, output_args = prototype.get_input_output_arguments()
-
+                    
                     for arraytype in arraytypes:
                         for kind in kinds_:
                             if arraytype == 'variable' and kind != 'Xnd':
                                 continue
-                            if max_rank < 2 and kind == 'Fortran':
-                                print('get_module_data: Fortran {}-rank kernel is equivalent to C kernel, skipping. [KERNEL {}]'.format(max_rank, kernel_name))
+                            if kind not in allowed_kinds:
+                                print('get_module_data: `kinds: {}` not in allowed set `kinds: {}` [KERNEL {}]`'.format(kind, '|'.join(allowed_kinds), kernel_name))
                                 continue
+                            
+                            #if max_rank < 2 and kind == 'Fortran':
+                            #    print('get_module_data: Fortran {}-rank kernel is equivalent to C kernel, skipping. [KERNEL {}]'.format(max_rank, kernel_name))
+                            #    continue
                             for ellipses_ in ellipses:
                                 kernel = deepcopy(prototype)
                                 kernel['kind'] = kind
