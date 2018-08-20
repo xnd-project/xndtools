@@ -25,10 +25,8 @@ install:
 
 before_script:
   - python setup.py develop
-  - cd xndlib && python setup.py develop && cd -
 
 script:
   - pytest -v xndtools/
-  - cd xndlib/ && pytest -v xndlib/ --ignore xndlib/tests/test_example.py
 
 
