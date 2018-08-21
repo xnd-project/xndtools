@@ -126,7 +126,7 @@ def update_config_xnd(**config):
                         break
             else:
                 # In custom configuration user specifies include and library directories.
-                include_paths = ':'.join(include_dir_canditates)
+                include_paths = ':'.join(include_dir_candidates)
                 print(f'WARNING:update_config_xnd: no header file `{header_name}.h` found in `{include_paths}`. Assuming custom configuration.')
         
         if name not in config['libraries']:
