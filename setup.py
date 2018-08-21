@@ -73,7 +73,9 @@ def kernel_generator_test_modules():
                                       target_file = None,
                                       kernels_source_file = None,
         ))
-        
+        if not m['has_xnd']:
+            print(f'WARNING: no XND packages found for {cfg}.')
+            continue
         ext = Extension (
             m['extname'],
             include_dirs = m['include_dirs'],

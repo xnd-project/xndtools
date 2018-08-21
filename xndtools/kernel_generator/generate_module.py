@@ -35,7 +35,9 @@ def generate_module(config_file,
                 library_dirs = module_data['library_dirs'],
                 libraries = module_data['libraries'],
                 extname = extname,
-                language = target_language)
+                language = target_language,
+                has_xnd = module_data['has_xnd']
+    )
     
 pymodule_template = '''
 #include <Python.h>

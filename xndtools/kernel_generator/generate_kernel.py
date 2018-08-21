@@ -99,12 +99,15 @@ def update_config_xnd(**config):
     libraries = ['gumath', 'xnd', 'ndtypes']
     include_dirs = config['include_dirs']
     library_dirs = config['library_dirs']
+    has_xnd = None
     for name in libraries:
         try:
             module =  __import__(name)
+            has_xnd = True
         except ImportError as msg:
             # Skipping for cases where one needs to generate the kernel sources only.
             print(f'update_config_xnd: failed to import the required package `{name}`: {msg}. SKIPPING!')
+            has_xnd = False
             continue
         d = os.path.dirname(module.__file__)
         d_files = ' '.join(map(os.path.basename, glob(os.path.join(d, '*.*'))))
@@ -128,6 +131,7 @@ def update_config_xnd(**config):
         
         if name not in config['libraries']:
             config['libraries'].append(name)
+    return has_xnd
 
 def get_module_data(config_file):
     config = load_kernel_config(config_file)
@@ -143,9 +147,9 @@ def get_module_data(config_file):
     include_dirs = []
     library_dirs = []
     libraries = []
-    update_config_xnd(include_dirs=include_dirs,
-                      library_dirs=library_dirs,
-                      libraries=libraries)    
+    has_xnd = update_config_xnd(include_dirs=include_dirs,
+                                library_dirs=library_dirs,
+                                libraries=libraries)    
     include_dirs.append(xndtools_datadir)
     
     sources = list(glob(os.path.join(xndtools_datadir, '*.c')))
@@ -362,6 +366,7 @@ def get_module_data(config_file):
         sources = sources,
         kernels = kernels,
         typemap_tests = list([dict(orig_type=o[0], normal_type=o[1]) for o in typemap_tests]),
+        has_xnd = has_xnd
     )
 
     return module_data
