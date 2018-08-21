@@ -97,6 +97,8 @@ def update_config_xnd(**config):
     sys_include_dir = os.path.join(sys.prefix, 'include')
     sys_lib_dir = os.path.join(sys.prefix, 'lib')
     libraries = ['gumath', 'xnd', 'ndtypes']
+    include_dirs = config['include_dirs']
+    library_dirs = config['library_dirs']
     for name in libraries:
         try:
             module =  __import__(name)
@@ -107,23 +109,23 @@ def update_config_xnd(**config):
         d = os.path.dirname(module.__file__)
         d_files = ' '.join(map(os.path.basename, glob(os.path.join(d, '*.*'))))
         print(f'found `{name}` package in `{d}` that contains:\n  {d_files}')
-        
-        h = os.path.join(d, f'{name}.h')
-        include_dir = None
-        if not os.path.isfile(h):
-            print(f'update_config_xnd: no header file `{name}.h` found in `{d}`. Assuming custom configuration.')
-            if not os.path.isfile(os.path.join(sys_include_dir, f'{name}.h')):
-                # In custom configuration user specifies include and library directories.
-                print(f'update_config_xnd: no header file `{name}.h` found in `{sys_include_dir}`. Assuming custom configuration.')
-            include_dir = sys_include_dir
-            library_dir = sys_lib_dir
-        else:
-            include_dir = library_dir = d
 
-        if include_dir not in config['include_dirs']:
-            config['include_dirs'].append(include_dir)
-        if library_dir not in config['library_dirs']:
-            config['library_dirs'].append(library_dir)
+        include_dir_candidates = (d, sys_include_dir)
+        library_dir_candidates = (d, sys_lib_dir)
+        
+        for header_name in [f'{name}', f'py{name}']:
+            for dh,dl in zip(include_dir_candidates, library_dir_candidates):
+                h = os.path.join(dh, f'{header_name}.h')
+                if os.path.isfile(h):
+                    if h not in include_dirs:
+                        include_dirs.append(dh)
+                        library_dirs.append(dl)
+                        break
+            else:
+                # In custom configuration user specifies include and library directories.
+                include_paths = ':'.join(include_dir_canditates)
+                print(f'WARNING:update_config_xnd: no header file `{header_name}.h` found in `{include_paths}`. Assuming custom configuration.')
+        
         if name not in config['libraries']:
             config['libraries'].append(name)
 
