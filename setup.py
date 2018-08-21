@@ -51,8 +51,8 @@ from distutils.command.build_py import build_py
 from glob import glob
 from shutil import copyfile
 
-def build_dir_path(dname, *path):
-    f = os.path.join('build', '{dirname}.{platform}-{version[0]}.{version[1]}', *path)
+def temp_dir_path(dname, *path):
+    f = os.path.join('temp', '{dirname}.{platform}-{version[0]}.{version[1]}', *path)
     return f.format(dirname=dname,
                     platform=sysconfig.get_platform(),
                     version=sys.version_info)
@@ -60,7 +60,7 @@ def build_dir_path(dname, *path):
 def kernel_generator_test_modules():
     from argparse import Namespace
     from xndtools.kernel_generator import generate_module
-    source_dir = build_dir_path('lib', 'xndtools/kernel_generator/tests/')
+    source_dir = temp_dir_path('lib', 'xndtools/kernel_generator/tests/')
     extensions = []
     for cfg in glob('xndtools/kernel_generator/tests/test_*-kernels.cfg'):
         extra_compile_args = ["-Wextra", "-Wno-missing-field-initializers", "-std=c11"]
@@ -73,6 +73,7 @@ def kernel_generator_test_modules():
                                       target_file = None,
                                       kernels_source_file = None,
         ))
+        
         ext = Extension (
             m['extname'],
             include_dirs = m['include_dirs'],

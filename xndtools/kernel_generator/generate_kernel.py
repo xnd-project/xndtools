@@ -79,7 +79,7 @@ def generate_kernel(config_file,
         if target_file is None:
             target_file = os.path.join(source_dir, '{module_name}-kernels.c'.format(**data))
         if isinstance(target_file, str):
-            print('generate_kernel: kernel sources are saved to {}'.format(target_file))
+            print('generate_kernel: target source file is {}'.format(target_file))
             target_file = open(target_file, 'w')
             own_target_file = True
         else:
@@ -102,24 +102,29 @@ def update_config_xnd(**config):
             module =  __import__(name)
         except ImportError as msg:
             # Skipping for cases where one needs to generate the kernel sources only.
-            print(f'update_config_xnd: failed to import the requitred package `{name}`: {msg}. SKIPPING!')
+            print(f'update_config_xnd: failed to import the required package `{name}`: {msg}. SKIPPING!')
             continue
         d = os.path.dirname(module.__file__)
+        d_files = ' '.join(map(os.path.basename, glob(os.path.join(d, '*.*'))))
+        print(f'found `{name}` package in `{d}` that contains:\n  {d_files}')
+        
         h = os.path.join(d, f'{name}.h')
         include_dir = None
         if not os.path.isfile(h):
+            print(f'update_config_xnd: no header file `{name}.h` found in `{d}`. Assuming custom configuration.')
             if not os.path.isfile(os.path.join(sys_include_dir, f'{name}.h')):
                 # In custom configuration user specifies include and library directories.
-                print(f'update_config_xnd: no header file `{name}.h` found in `{d}`. Assuming custom configuration.')
+                print(f'update_config_xnd: no header file `{name}.h` found in `{sys_include_dir}`. Assuming custom configuration.')
             include_dir = sys_include_dir
             library_dir = sys_lib_dir
         else:
             include_dir = library_dir = d
-        if 'include_dirs' in config:
+
+        if include_dir not in config['include_dirs']:
             config['include_dirs'].append(include_dir)
-        if 'library_dirs' in config:
+        if library_dir not in config['library_dirs']:
             config['library_dirs'].append(library_dir)
-        if 'libraries' in config:
+        if name not in config['libraries']:
             config['libraries'].append(name)
 
 def get_module_data(config_file):
