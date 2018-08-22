@@ -22,7 +22,7 @@ def test_resolve_path():
     
     rpath = lambda *args: resolve_path(*args, normpath=False)
     assert rpath('a/b') == 'a/b'
-    assert rpath('a/b', 'p') == 'p/a/b'
+    assert rpath('a/b', 'p') == os.path.join('p','a/b')
     assert resolve_path('<prefix>/a') == os.path.join(sys.prefix, 'a')
     assert resolve_path('<site>/a') == os.path.join(site, 'a')
 
