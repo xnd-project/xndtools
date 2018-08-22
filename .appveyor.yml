@@ -26,7 +26,8 @@ build_script:
   - "%PYTHON%\\python.exe setup.py install"
   - cd ..\gumath
   - "%PYTHON%\\python.exe setup.py install"
-  - cd ..\xndtools
+  - cd ..
+  - dir
   - "%PYTHON%\\python.exe setup.py develop"
   - "%PYTHON%\\python.exe setup.py test"
   - git clean -xdf
