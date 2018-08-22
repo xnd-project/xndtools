@@ -1,0 +1,36 @@
+skip_tags: true
+
+matrix:
+  fast_finish: true
+
+os: Visual Studio 2015
+
+environment:
+  matrix:
+    - PLATFORM: "x64"
+      VCBUILD: "vcbuild64.bat"
+      RUNTEST: "runtest64.bat"
+      PYTHON: "C:\\Python36-x64"
+
+before_build:
+  "\"C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\VC\\vcvarsall.bat\" %PLATFORM%"
+
+build_script:
+  - "%PYTHON%\\python.exe -m pip install pytest"
+  - git clone https://github.com/plures/ndtypes.git
+  - git clone https://github.com/plures/xnd.git
+  - git clone https://github.com/plures/gumath.git
+  - git clone https://github.com/plures/xndtools.git
+  - cd ndtypes
+  - "%PYTHON%\\python.exe setup.py install"
+  - cd ..\xnd
+  - "%PYTHON%\\python.exe setup.py install"
+  - cd ..\gumath
+  - "%PYTHON%\\python.exe setup.py install"
+  - cd ..
+  - cd xndtools
+  - "%PYTHON%\\python.exe setup.py develop"
+  - "%PYTHON%\\python.exe setup.py test"
+  - git clean -xdf
+  - "%PYTHON%\\python.exe setup.py install"
+  - "%PYTHON%\\python.exe setup.py test"
