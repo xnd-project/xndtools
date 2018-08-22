@@ -63,14 +63,6 @@ def kernel_generator_test_modules():
     source_dir = temp_dir_path('lib', 'xndtools/kernel_generator/tests/')
     extensions = []
     for cfg in glob('xndtools/kernel_generator/tests/test_*-kernels.cfg'):
-        if sys.platform == "win32":
-            extra_compile_args = []
-            extra_link_args = []
-            runtime_library_dirs = []
-        else:
-            extra_compile_args = ["-Wextra", "-Wno-missing-field-initializers", "-std=c11"]
-            extra_link_args = []
-            runtime_library_dirs = []
         m = generate_module(Namespace(config_file = cfg,
                                       target_language = 'python',
                                       package = 'xndtools.kernel_generator.tests',
@@ -81,6 +73,16 @@ def kernel_generator_test_modules():
         if not m['has_xnd']:
             print(f'WARNING: no XND packages found for {cfg}.')
             continue
+        if sys.platform == "win32":
+            extra_compile_args = []
+            extra_link_args = []
+            runtime_library_dirs = []
+            libraries = [f'lib{}-0.2.0dev3.dll' for lib in libraries if lib in ['gumath','xnd','ndtypes']]
+        else:
+            extra_compile_args = ["-Wextra", "-Wno-missing-field-initializers", "-std=c11"]
+            extra_link_args = []
+            runtime_library_dirs = []
+
         ext = Extension (
             m['extname'],
             include_dirs = m['include_dirs'],
