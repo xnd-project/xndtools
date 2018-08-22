@@ -1,4 +1,7 @@
 import pytest
+from xndtools.kernel_generator.utils import NormalizedTypeMap
+long_t = NormalizedTypeMap()('long')
+
 from xnd import xnd
 
 try:
@@ -25,23 +28,23 @@ def assert_equal(x, y):
                     reason=skip_reason)
 def test_mixed_matrices_CF_inout():
     a = xnd([[10,20],
-             [30,40]], type='2 * 2 * int64')
+             [30,40]], type=f'2 * 2 * {long_t}')
     b = xnd([[5,6],
-             [7,8]], type='!2 * 2 * int64')
+             [7,8]], type=f'!2 * 2 * {long_t}')
     r = m.test_mixed_matrices_inout_CF(a, b)
     assert_equal(r, xnd(26))
 
     a = xnd([[10,20],
-             [30,40]], type='!2 * 2 * int64')
+             [30,40]], type=f'!2 * 2 * {long_t}')
     b = xnd([[5,6],
-             [7,8]], type='2 * 2 * int64')
+             [7,8]], type=f'2 * 2 * {long_t}')
     with pytest.raises(ValueError, match=r'.* must be C-contiguous .*'):
         r = m.test_mixed_matrices_inout_CF(a, b)
 
     a = xnd([[10,20],
-             [30,40]], type='2 * 2 * int64')
+             [30,40]], type=f'2 * 2 * {long_t}')
     b = xnd([[5,6],
-             [7,8]], type='2 * 2 * int64')
+             [7,8]], type=f'2 * 2 * {long_t}')
     with pytest.raises(ValueError, match=r'.* must be F-contiguous .*'):
         r = m.test_mixed_matrices_inout_CF(a, b)
 
@@ -50,9 +53,9 @@ def test_mixed_matrices_CF_inout():
                     reason=skip_reason)
 def test_mixed_matrices_FC_inout():
     a = xnd([[10,20],
-             [30,40]], type='!2 * 2 * int64')
+             [30,40]], type=f'!2 * 2 * {long_t}')
     b = xnd([[5,6],
-             [7,8]], type='2 * 2 * int64')
+             [7,8]], type=f'2 * 2 * {long_t}')
     r = m.test_mixed_matrices_inout_FC(a, b)
     assert_equal(r, xnd(37))
 
@@ -60,16 +63,16 @@ def test_mixed_matrices_FC_inout():
 @pytest.mark.skipif(m is None, reason=skip_reason)
 def test_mixed_matrices_CC_inout():
     a = xnd([[10,20],
-             [30,40]], type='2 * 2 * int64')
+             [30,40]], type=f'2 * 2 * {long_t}')
     b = xnd([[5,6],
-             [7,8]], type='2 * 2 * int64')
+             [7,8]], type=f'2 * 2 * {long_t}')
     r = m.test_mixed_matrices_inout_CC(a, b)
     assert_equal(r, xnd(27))
 
     a = xnd([[10,20],
-             [30,40]], type='!2 * 2 * int64')
+             [30,40]], type=f'!2 * 2 * {long_t}')
     b = xnd([[5,6],
-             [7,8]], type='!2 * 2 * int64')
+             [7,8]], type=f'!2 * 2 * {long_t}')
     with pytest.raises(ValueError, match=r'.* must be C-contiguous .*'):
         r = m.test_mixed_matrices_inout_CC(a, b)
 
@@ -78,16 +81,16 @@ def test_mixed_matrices_CC_inout():
                     reason=skip_reason)
 def test_mixed_matrices_FF_inout():
     a = xnd([[10,20],
-             [30,40]], type='!2 * 2 * int64')
+             [30,40]], type=f'!2 * 2 * {long_t}')
     b = xnd([[5,6],
-             [7,8]], type='!2 * 2 * int64')
+             [7,8]], type=f'!2 * 2 * {long_t}')
     r = m.test_mixed_matrices_inout_FF(a, b)
     assert_equal(r, xnd(36))
 
     a = xnd([[10,20],
-             [30,40]], type='2 * 2 * int64')
+             [30,40]], type=f'2 * 2 * {long_t}')
     b = xnd([[5,6],
-             [7,8]], type='2 * 2 * int64')
+             [7,8]], type=f'2 * 2 * {long_t}')
 
     with pytest.raises(ValueError, match=r'.* must be F-contiguous .*'):
         r = m.test_mixed_matrices_inout_FF(a, b)
