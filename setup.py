@@ -63,9 +63,14 @@ def kernel_generator_test_modules():
     source_dir = temp_dir_path('lib', 'xndtools/kernel_generator/tests/')
     extensions = []
     for cfg in glob('xndtools/kernel_generator/tests/test_*-kernels.cfg'):
-        extra_compile_args = ["-Wextra", "-Wno-missing-field-initializers", "-std=c11"]
-        extra_link_args = []
-        runtime_library_dirs = []        
+        if sys.platform == "win32":
+            extra_compile_args = []
+            extra_link_args = []
+            runtime_library_dirs = []
+        else:
+            extra_compile_args = ["-Wextra", "-Wno-missing-field-initializers", "-std=c11"]
+            extra_link_args = []
+            runtime_library_dirs = []
         m = generate_module(Namespace(config_file = cfg,
                                       target_language = 'python',
                                       package = 'xndtools.kernel_generator.tests',
