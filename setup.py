@@ -155,7 +155,8 @@ def setup_package():
         scripts=['scripts/xnd_tools', 'scripts/structinfo_generator'],
         cmdclass={'build_py': my_build_py},
         ext_modules = [ext for ext in ext_modules if ext is not None],
-     
+        setup_requires=['pytest-runner'],
+        tests_require=['pytest'],
     )
     
     try:
