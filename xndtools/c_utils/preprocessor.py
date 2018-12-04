@@ -5,7 +5,7 @@ import shutil
 import io
 
 
-def preprocess(source, include_dirs=(), skip_includes=(), use_compiler=False):
+def preprocess(source, include_dirs=[], skip_includes=[], use_compiler=False):
     """ Preprocess c source files naively or with compiler
 
     """
@@ -18,8 +18,8 @@ def preprocess(source, include_dirs=(), skip_includes=(), use_compiler=False):
             source = re.sub(r'^#.*\n', '', p.stdout, flags=re.MULTILINE)
             break
     else: # naive c preprocessor
-        source = _remove_comments(source)
         source = _resolve_includes(source, include_dirs=include_dirs, skip_includes=skip_includes)
+        source = _remove_comments(source)
         source = _resolve_macros(source, identifiers={})
     return source
 
@@ -31,7 +31,7 @@ def _remove_comments(source):
     return re.sub(comment_re,'', source, flags=re.MULTILINE | re.DOTALL)
 
 
-def _resolve_includes(source, include_dirs=(), skip_includes=()):
+def _resolve_includes(source, include_dirs=[], skip_includes=[]):
     """ Return source with includes resolved.
 
     Unresolved includes are ignored.
@@ -51,20 +51,20 @@ def _resolve_includes(source, include_dirs=(), skip_includes=()):
     """
     include_re = r'#include\s*[<"]([^"<>]+)[>"]'
     def include_repl(m):
-        include_file = _find_include(m.group(1), include_dirs)
+        include_file = find_include(m.group(1), include_dirs)
         if not os.path.isfile(include_file) or include_file in skip_includes:
             #print('skip', include_file)
             return source[slice(*m.span())]
         print('including', include_file)
         f = open(include_file)
-        include_content = remove_comments(f.read())
+        include_content = f.read()
         f.close()
         skip_includes.append(include_file)
-        return resolve_includes(include_content, include_dirs = include_dirs, skip_includes = skip_includes)
+        return _resolve_includes(include_content, include_dirs = include_dirs, skip_includes = skip_includes)
     return re.sub(include_re, include_repl, source, re.MULTILINE)
 
 
-def _find_include(include, include_dirs):
+def find_include(include, include_dirs):
     """ Return path to include file in given include directories.
     """
     if os.path.isfile(include):

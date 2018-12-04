@@ -94,9 +94,9 @@ def kernel_generator_test_modules():
             extra_link_args = extra_link_args,
             runtime_library_dirs = runtime_library_dirs
         )
-        
+
         extensions.append(ext)
-        
+
     return extensions
 
 data_files = (
@@ -130,7 +130,7 @@ def setup_package():
     sys.path.insert(0, src_path)
 
     ext_modules = kernel_generator_test_modules()
-    
+
     metadata = dict(
        name='xndtools',
         description=DESCRIPTION,
@@ -157,7 +157,7 @@ def setup_package():
             "gumath == v0.2.0.dev3"
         ],
         include_package_data=True,
-        packages=['xndtools', 'xndtools.kernel_generator'],
+        packages=['xndtools', 'xndtools.kernel_generator', 'xndtools.c_utils'],
         # package_data={'xndtools': data_files},
         scripts=['scripts/xnd_tools', 'scripts/structinfo_generator'],
         cmdclass={'build_py': my_build_py},
@@ -165,7 +165,7 @@ def setup_package():
         setup_requires=['pytest-runner'],
         tests_require=['pytest'],
     )
-    
+
     try:
         setup(**metadata)
     finally:
