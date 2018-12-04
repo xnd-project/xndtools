@@ -2,15 +2,25 @@ import os
 import re
 import subprocess
 import shutil
+import io
 
 
-def preprocess(source, include_dirs=(), skip_includes=()):
+def preprocess(source, include_dirs=(), skip_includes=(), use_compiler=False):
     """ Preprocess c source files naively or with compiler
 
     """
-    source = _remove_comments(source)
-    source = _resolve_includes(source, include_dirs=include_dirs, skip_includes=skip_includes)
-    source = _resolve_macros(source, identifiers={})
+    compiler_commands = {
+        'gcc': ['gcc', '-E', '-']
+    }
+    for compiler in compiler_commands:
+        if use_compiler and shutil.which(compiler):
+            p = subprocess.run(compiler_commands[compiler], input=source, encoding='ascii', stdout=subprocess.PIPE)
+            source = re.sub(r'^#.*\n', '', p.stdout, flags=re.MULTILINE)
+            break
+    else: # naive c preprocessor
+        source = _remove_comments(source)
+        source = _resolve_includes(source, include_dirs=include_dirs, skip_includes=skip_includes)
+        source = _resolve_macros(source, identifiers={})
     return source
 
 

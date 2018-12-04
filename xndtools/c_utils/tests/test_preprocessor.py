@@ -34,3 +34,10 @@ int b = 2;
 int a = 1;
 
 '''
+
+def test_preprocessor():
+    preprocessor.preprocess('''
+#include <stdio.h>
+
+int a = 1;
+    ''')
