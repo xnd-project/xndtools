@@ -6,7 +6,7 @@ def flatten_unions(items):
         if item[0]=='union':
             for i in flatten_unions(item[1]):
                 yield i
-        elif item[0]=='struct':            
+        elif item[0]=='struct':
             yield (item[0], list(flatten_unions(item[1])), item[2])
         else:
             yield item
@@ -99,7 +99,7 @@ static struct PyModuleDef {modulename}module = {{
 PyMODINIT_FUNC
 PyInit_{modulename}(void) {{
   {PyInit_source}
-  return PyModule_Create(&{modulename}module); 
+  return PyModule_Create(&{modulename}module);
 }}
 #endif
 '''
@@ -122,14 +122,15 @@ def generate(args):
         include = c_utils.find_include(include, include_dirs)
         source.append('#include "{}"'.format(include))
     source = '\n'.join(source)
-    source = c_utils.resolve_includes(source, include_dirs=include_dirs)
+    source = c_utils.preprocess(source, include_dirs=include_dirs)
+    print(source)
     structs = c_utils.get_structs(source)
     lines = ['/* This file is generated using structinfo_generator from the xndtools project */']
     for include in args.include:
         lines.append('#include "{}"'.format(include))
 
     lines.append(args.c_source)
-        
+
     ext_functions = [args.capi_source]
     ext_methods = [args.PyMethodDef_items]
     for typename, items in structs.items():
@@ -162,19 +163,19 @@ static PyObject *pyc_{fname}(PyObject *self, PyObject *args) {{
                 ext_methods.append(pyc_method_template.format_map(locals()))
             else:
                 print(f'capsulating {typename} not implemented')
-            
+
         fname = f'sizeof_{typename}'
         #fmember = fname
         fdoc = pyc_noarg_doc_template.format_map(locals())
         lines.append(f'extern size_t {fname}(void){{ return sizeof({typename}); }}')
         ext_functions.append(pyc_noarg_template.format_map(locals()))
         ext_methods.append(pyc_method_template.format_map(locals()))
-        
+
         for typespec,names in flatten_structs(flatten_unions(items)):
             # loose C type declaration would be `<typespec> <names[-1]>`
             membernames = '_'.join(names)
             memberattrs = '.'.join(names)
-            
+
             fname = f'get_{typename}_{membernames}'
 
             lines.append(f'extern /* pointer to `{typespec}` */ void * {fname}(void* ptr){{ return &((({typename}*)ptr)->{memberattrs}); }}')

@@ -1,4 +1,6 @@
 #!/bin/bash
+set -ex
+
 CWD=$(pwd)
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -9,11 +11,11 @@ if [[ -z "${TRAVIS}" ]]; then
     if ! [ -d $DIR/ndtypes ]; then
 	git clone git@github.com:plures/ndtypes.git
     fi
-    
+
     if ! [ -d $DIR/xnd ]; then
 	git clone git@github.com:plures/xnd.git
     fi
-    
+
     if ! [ -d $DIR/gumath ]; then
 	git clone git@github.com:plures/gumath.git
     fi

@@ -1,59 +1,8 @@
-""" Utilities for manipulating C sources.
-
-"""
-# Author: Pearu Peterson
-# Created: July 2018
-
-import os
 import re
 
-def find_include(include, include_dirs):
-    """ Return path to include file in given include directories.
-    """
-    if os.path.isfile(include):
-        return include
-    for d in include_dirs:
-        path = os.path.join(d, include)
-        if os.path.isfile(path):
-            return path
-    return include
 
-def resolve_includes(source, include_dirs = [], skip_includes = []):
-    """ Return source with includes resolved.
-
-    Unresolved includes are ignored.
-
-    Parameters
-    ----------
-    source : str
-      Specify C source code.
-    include_dirs : list
-      Specify a list include directories.
-
-    Returns
-    -------
-    source : str
-      Source with resolved includes.
-
-    """
-    include_re = r'#include\s*[<"]([^"<>]+)[>"]'
-    def include_repl(m):
-        include_file = find_include(m.group(1), include_dirs)
-        if not os.path.isfile(include_file) or include_file in skip_includes:
-            #print('skip', include_file)
-            return source[slice(*m.span())]
-        print('including', include_file)
-        f = open(include_file)
-        include_content = remove_comments(f.read())
-        f.close()
-        skip_includes.append(include_file)
-        return resolve_includes(include_content, include_dirs = include_dirs, skip_includes = skip_includes)
-    return re.sub(include_re, include_repl, source, re.MULTILINE)
-
-def get_c_blocks(source,
-                 _wdir=dict(counter=0, blocks={}),
-):
-    """ Replace all {}-blocks with generated keys.
+def get_c_blocks(source, _wdir=dict(counter=0, blocks={})):
+    """ Recursively replace all {}-blocks with generated keys.
 
     Parameters
     ----------
@@ -68,6 +17,7 @@ def get_c_blocks(source,
       Mapping of keys and {}-blocks.
     """
     block_re = r'{[^{}]*}'
+
     def block_repl(m):
         block = source[slice(*m.span())]
         _wdir['counter'] += 1
@@ -79,11 +29,6 @@ def get_c_blocks(source,
         return get_c_blocks(new_source, _wdir=_wdir)
     return new_source, _wdir['blocks']
 
-def remove_comments(source):
-    """ Return source without comments.
-    """
-    comment_re = r'(/[*].*?[*]/)|(//[^\n]*)'
-    return re.sub(comment_re,'', source, flags=re.MULTILINE | re.DOTALL)
 
 def get_enums(source):
     """ Return a dictionary of C enum definitions.
@@ -96,6 +41,7 @@ def get_enums(source):
         enums[name] = list(map(str.strip, block[1:-1].split(',')))
     return enums
 
+
 def _normalize_typespec(typespec):
     lst = typespec.split()
     r = lst[0]
@@ -105,6 +51,7 @@ def _normalize_typespec(typespec):
             sep = ' '
         r = r + sep + w
     return r
+
 
 def _get_block_items(block, blocks): # helper function for get_structs
     union_match = re.compile(r'union\s*(@@@\d+@@@)').match
@@ -119,6 +66,7 @@ def _get_block_items(block, blocks): # helper function for get_structs
             stmt = stmt.split(None, 1)[1]
         m = union_match(stmt)
         if m is not None:
+            print('found union!')
             key,  = m.groups()
             items.append(('union',_get_block_items(blocks[key], blocks)))
             continue
@@ -132,6 +80,7 @@ def _get_block_items(block, blocks): # helper function for get_structs
             i = stmt.index('[')
             size = stmt[i+1:-1].strip()
             stmt = stmt[:i]
+        print('=======', stmt)
         name = rname_match(stmt[::-1]).group(0)[::-1].strip()
         assert name is not None, repr(stmt)
         typespec = stmt[:-len(name)].strip()
@@ -141,13 +90,15 @@ def _get_block_items(block, blocks): # helper function for get_structs
         items.append((typespec,name,size))
     return items
 
+
 def expand_extern_C(source, blocks):
     extern_C_re = r'extern\s+["]C["]\s*(@@@\d+@@@)'
     def repl(m):
         key, = m.groups()
         return 'extern "C" ' + blocks[key]
     return re.sub(extern_C_re, repl, source, flags=re.MULTILINE | re.DOTALL)
-    
+
+
 def get_structs(source):
     """ Return a dictionary of C struct definitions.
     """
@@ -160,7 +111,7 @@ def get_structs(source):
         # `typedef struct {...} word2;`          key={...}, name=word2
         r'typedef\s+struct\s*(@@@\d+@@@)\s*([a-zA-Z_]\w*)\s*;',
         # `typedef struct word1 {...} word2;`    key={...}, name=word2; word1 is unused
-        r'typedef\s+struct\s*[a-zA-Z_]\w*\s*(@@@\d+@@@)\s*([a-zA-Z_]\w*)\s*;', 
+        r'typedef\s+struct\s*[a-zA-Z_]\w*\s*(@@@\d+@@@)\s*([a-zA-Z_]\w*)\s*;',
         # `struct word1 {...}`                   key=word1, name={...}; needs a key-name swap
         r'struct\s+([a-zA-Z_]\w*)\s*(@@@\d+@@@)\s*;'
     ]
@@ -172,24 +123,7 @@ def get_structs(source):
         if key[0]=='@':
             if name in structs:                  # replace word1 with word2
                 name = structs.pop(name)
-            structs[name] = _get_block_items(remove_comments(blocks[key]), blocks)
+            structs[name] = _get_block_items(blocks[key], blocks)
         else:
             structs[key] = name
     return structs
-
-def _test():
-    from pprint import pprint
-    import sys
-    fn = sys.argv[1]
-    r, blocks = get_c_blocks(open(fn).read())
-
-    r = get_enums(open(fn).read())
-    print('ENUMS:')
-    print(r)
-
-    r = get_structs(open(fn).read())
-    print('STRUCTS:')
-    pprint(r)
-    
-if __name__ == '__main__':
-    _test()
