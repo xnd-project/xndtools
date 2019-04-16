@@ -1,0 +1,20 @@
+#
+# Create environment for xndtools development:
+#
+#   conda env create --file=xndtools-devel.yaml -n xndtools-dev
+#
+
+name: xndtools-dev
+channels:
+  - xnd/label/dev
+  - conda-forge
+  - defaults
+dependencies:
+  - python
+  - pytest
+  - pytest-runner
+  - xnd
+  - gumath
+  - ndtypes
+  - c-compiler
+  - flake8
