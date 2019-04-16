@@ -1,7 +1,7 @@
 XND Tools
 ---------
 
-[![Travis CI Build Status](https://travis-ci.org/xnd-project/xndtools.svg?branch=master)](https://travis-ci.org/plures/xndtools)
+[![Travis CI Build Status](https://travis-ci.org/xnd-project/xndtools.svg?branch=master)](https://travis-ci.org/xnd-project/xndtools)
 [![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/lk48i3bmmw2keq3d/branch/master?svg=true)](https://ci.appveyor.com/project/pearu/xndtools/branch/master)
 
 XND Tools provides development tools for the XND project. Currently,
