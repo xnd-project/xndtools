@@ -1,19 +1,21 @@
 import os
 from . import c_utils
 
+
 def flatten_unions(items):
     for item in items:
-        if item[0]=='union':
+        if item[0] == 'union':
             for i in flatten_unions(item[1]):
                 yield i
-        elif item[0]=='struct':
+        elif item[0] == 'struct':
             yield (item[0], list(flatten_unions(item[1])), item[2])
         else:
             yield item
 
+
 def flatten_structs(items):
     for item in items:
-        if item[0]=='struct':
+        if item[0] == 'struct':
             members, name = item[1:]
             for (typespec, names) in flatten_structs(members):
                 yield typespec, (name,)+names
@@ -23,6 +25,7 @@ def flatten_structs(items):
                 yield typespec+'*', (name,)
             else:
                 yield typespec, (name,)
+
 
 pyc_noarg_template = 'static PyObject *pyc_{fname}(PyObject *self, PyObject *args) {{ return PyLong_FromLong((long)({fname}())); }}'
 pyc_noarg_doc_template = '"{fname}() -> int"'
@@ -105,13 +108,12 @@ PyInit_{modulename}(void) {{
 '''
 
 
-
 def generate(args):
     include_dirs = args.include_dir or []
     include = args.include[0]
     target = args.output
     if target is None:
-        target = os.path.basename(include).replace('.','_') + '_structinfo.c'
+        target = os.path.basename(include).replace('.', '_') + '_structinfo.c'
         orig_include = include
     modulename = args.modulename
     if not modulename:
@@ -143,8 +145,8 @@ def generate(args):
             fname = f'capsulate_{typename}'
             fdoc = 'NULL'
             implementation = dict(
-                NdtObject = dict(check='Ndt_CheckExact'),
-                XndObject = dict(check='Ndt_Check'),
+                NdtObject=dict(check='Ndt_CheckExact'),
+                XndObject=dict(check='Ndt_Check'),
             ).get(typename)
             if implementation is not None:
                 pyc_func = f'''\
@@ -165,13 +167,13 @@ static PyObject *pyc_{fname}(PyObject *self, PyObject *args) {{
                 print(f'capsulating {typename} not implemented')
 
         fname = f'sizeof_{typename}'
-        #fmember = fname
+        # fmember = fname
         fdoc = pyc_noarg_doc_template.format_map(locals())
         lines.append(f'extern size_t {fname}(void){{ return sizeof({typename}); }}')
         ext_functions.append(pyc_noarg_template.format_map(locals()))
         ext_methods.append(pyc_method_template.format_map(locals()))
 
-        for typespec,names in flatten_structs(flatten_unions(items)):
+        for typespec, names in flatten_structs(flatten_unions(items)):
             # loose C type declaration would be `<typespec> <names[-1]>`
             membernames = '_'.join(names)
             memberattrs = '.'.join(names)
@@ -199,7 +201,8 @@ static PyObject *pyc_{fname}(PyObject *self, PyObject *args) {{
             fname = f'offsetof_{typename}_{membernames}'
             fmember = fname
             fdoc = pyc_noarg_doc_template.format_map(locals())
-            lines.append(f'extern size_t {fname}(void){{ return offsetof({typename}, {memberattrs}); }}')
+            lines.append(f'extern size_t {fname}(void)'
+                         f'{{ return offsetof({typename}, {memberattrs}); }}')
             ext_functions.append(pyc_noarg_template.format_map(locals()))
             ext_methods.append(pyc_method_template.format_map(locals()))
     methods = '\n  '.join(ext_methods)

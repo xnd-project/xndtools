@@ -1,5 +1,6 @@
 from xndtools.c_utils import parser
 
+
 def test_get_c_blocks():
     source = '''
 struct foobar {

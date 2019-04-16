@@ -53,9 +53,9 @@ def _normalize_typespec(typespec):
     return r
 
 
-def _get_block_items(block, blocks): # helper function for get_structs
+def _get_block_items(block, blocks):  # helper function for get_structs
     union_match = re.compile(r'union\s*(@@@\d+@@@)').match
-    rname_re = r'\w*[a-zA-Z_]' # reversed name
+    rname_re = r'\w*[a-zA-Z_]'  # reversed name
     rname_match = re.compile(rname_re).match
     struct_match = re.compile(r'struct\s*(@@@\d+@@@)\s*([a-zA-Z_]\w*)').match
     items = []
@@ -68,15 +68,17 @@ def _get_block_items(block, blocks): # helper function for get_structs
         if m is not None:
             print('found union!')
             key,  = m.groups()
-            items.append(('union',_get_block_items(blocks[key], blocks)))
+            items.append(('union',
+                          _get_block_items(blocks[key], blocks)))
             continue
         m = struct_match(stmt)
         if m is not None:
             key, name = m.groups()
-            items.append(('struct',_get_block_items(blocks[key], blocks), name))
+            items.append(('struct',
+                          _get_block_items(blocks[key], blocks), name))
             continue
         size = None
-        if stmt.endswith(']'): # <typespec> <name>[<size>]
+        if stmt.endswith(']'):  # <typespec> <name>[<size>]
             i = stmt.index('[')
             size = stmt[i+1:-1].strip()
             stmt = stmt[:i]
@@ -87,15 +89,17 @@ def _get_block_items(block, blocks): # helper function for get_structs
         if typespec.startswith('alignas'):
             typespec = typespec.split(' ', 1)[1]
         typespec = _normalize_typespec(typespec)
-        items.append((typespec,name,size))
+        items.append((typespec, name, size))
     return items
 
 
 def expand_extern_C(source, blocks):
     extern_C_re = r'extern\s+["]C["]\s*(@@@\d+@@@)'
+
     def repl(m):
         key, = m.groups()
         return 'extern "C" ' + blocks[key]
+
     return re.sub(extern_C_re, repl, source, flags=re.MULTILINE | re.DOTALL)
 
 
@@ -106,21 +110,22 @@ def get_structs(source):
     source = expand_extern_C(source, blocks)
 
     struct_patterns = [
-        # `typedef struct word1 word2;`          key=word1, name=word2; word1 will be replaced with word2
+        # `typedef struct word1 word2;`   key=word1, name=word2; word1 will be replaced with word2
         r'typedef\s+struct\s*([a-zA-Z_]\w*)\s+([a-zA-Z_]\w*)\s*;',
-        # `typedef struct {...} word2;`          key={...}, name=word2
+        # `typedef struct {...} word2;`   key={...}, name=word2
         r'typedef\s+struct\s*(@@@\d+@@@)\s*([a-zA-Z_]\w*)\s*;',
-        # `typedef struct word1 {...} word2;`    key={...}, name=word2; word1 is unused
+        # `typedef struct word1 {...} word2;`  key={...}, name=word2; word1 is unused
         r'typedef\s+struct\s*[a-zA-Z_]\w*\s*(@@@\d+@@@)\s*([a-zA-Z_]\w*)\s*;',
-        # `struct word1 {...}`                   key=word1, name={...}; needs a key-name swap
+        # `struct word1 {...}`            key=word1, name={...}; needs a key-name swap
         r'struct\s+([a-zA-Z_]\w*)\s*(@@@\d+@@@)\s*;'
     ]
     structs = {}
-    for r in re.findall('|'.join(struct_patterns), source, re.MULTILINE | re.DOTALL):
+    for r in re.findall('|'.join(struct_patterns), source,
+                        re.MULTILINE | re.DOTALL):
         key, name = filter(bool, r)
-        if name[0]=='@':                         # swap
+        if name[0] == '@':                         # swap
             key, name = name, key
-        if key[0]=='@':
+        if key[0] == '@':
             if name in structs:                  # replace word1 with word2
                 name = structs.pop(name)
             structs[name] = _get_block_items(blocks[key], blocks)

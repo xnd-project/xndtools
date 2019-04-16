@@ -26,81 +26,79 @@ Usage:
 # Created: April 2018
 
 import os
-import re
 import sys
 from collections import defaultdict
 import configparser
-from xndtools.kernel_generator.readers import PrototypeReader, load_kernel_config
+from xndtools.kernel_generator.readers import (PrototypeReader,
+                                               load_kernel_config)
 from xndtools.kernel_generator.utils import NormalizedTypeMap
+
 
 def main():
     # See
     #  https://software.intel.com/en-us/articles/intel-mkl-link-line-advisor/
     # for linking options
-    
+
     include_dirs = [os.path.join('$MKLROOT', 'include'),
-                    os.path.join('$CONDA_PREFIX', 'include')
-    ]
-    exclude_patterns = [r'.*_\Z', r'\A[A-Z0-9_]+\Z', r'.*_(batch|pack|alloc|free|work)\Z']
-    strip_left, strip_right = ['mkl_'], [] # parameters to NormalizedTypeMap
-    
-    generate_config(modulename = 'mkl_blas',
-                    includes = ['mkl_blas.h'],
-                    include_dirs = include_dirs,
-                    libraries = [],
-                    exclude_patterns = exclude_patterns,
-                    typemap_options = dict(
-                        strip_left = strip_left,
-                        strip_right = strip_right,
-                    ),
-    )
-    
-    generate_config(modulename = 'mkl_cblas',
-                    includes = ['mkl_cblas.h'],
-                    include_dirs = include_dirs,
-                    libraries = [],
-                    exclude_patterns = exclude_patterns,
-                    typemap_options = dict(
-                        strip_left = strip_left,
-                        strip_right = strip_right,
-                        initial = dict(
+                    os.path.join('$CONDA_PREFIX', 'include')]
+    exclude_patterns = [r'.*_\Z', r'\A[A-Z0-9_]+\Z',
+                        r'.*_(batch|pack|alloc|free|work)\Z']
+    strip_left, strip_right = ['mkl_'], []  # parameters to NormalizedTypeMap
+
+    generate_config(modulename='mkl_blas',
+                    includes=['mkl_blas.h'],
+                    include_dirs=include_dirs,
+                    libraries=[],
+                    exclude_patterns=exclude_patterns,
+                    typemap_options=dict(
+                        strip_left=strip_left,
+                        strip_right=strip_right,
+                    ))
+
+    generate_config(modulename='mkl_cblas',
+                    includes=['mkl_cblas.h'],
+                    include_dirs=include_dirs,
+                    libraries=[],
+                    exclude_patterns=exclude_patterns,
+                    typemap_options=dict(
+                        strip_left=strip_left,
+                        strip_right=strip_right,
+                        initial=dict(
                             CBLAS_INDEX='size_t',
                         )
-                    ),
-    )
+                    ))
 
-    generate_config(modulename = 'mkl_lapacke',
-                    includes = ['mkl_lapacke.h'],
-                    include_dirs = include_dirs,
-                    libraries = [],
-                    exclude_patterns = exclude_patterns,
-                    reader_options = dict(
-                        extra_specifiers = ['LAPACK_DECL'],
+    generate_config(modulename='mkl_lapacke',
+                    includes=['mkl_lapacke.h'],
+                    include_dirs=include_dirs,
+                    libraries=[],
+                    exclude_patterns=exclude_patterns,
+                    reader_options=dict(
+                        extra_specifiers=['LAPACK_DECL'],
                     ),
-                    typemap_options = dict(
-                        initial = dict(
-                            lapack_int = 'MKL_INT',
-                            lapack_logical = 'lapack_int',
-                            lapack_complex_float = 'MKL_Complex8',
-                            lapack_complex_double = 'MKL_Complex16',
+                    typemap_options=dict(
+                        initial=dict(
+                            lapack_int='MKL_INT',
+                            lapack_logical='lapack_int',
+                            lapack_complex_float='MKL_Complex8',
+                            lapack_complex_double='MKL_Complex16',
                         ),
-                        strip_left = strip_left,
-                        strip_right = strip_right,
-                    ),
-    )
+                        strip_left=strip_left,
+                        strip_right=strip_right,
+                    ))
 
-    generate_config(modulename = 'mkl_scalapack',
-                    includes = ['mkl_scalapack.h'],
-                    include_dirs = include_dirs,
-                    libraries = [],
-                    exclude_patterns = exclude_patterns,
-                    typemap_options = dict(
-                        strip_left = strip_left,
-                        strip_right = strip_right,
-                    ),
-    )
+    generate_config(modulename='mkl_scalapack',
+                    includes=['mkl_scalapack.h'],
+                    include_dirs=include_dirs,
+                    libraries=[],
+                    exclude_patterns=exclude_patterns,
+                    typemap_options=dict(
+                        strip_left=strip_left,
+                        strip_right=strip_right,
+                    ))
 
     # TODO: mkl_vml, mkl_dfti, mkl_df, etc
+
 
 config_editing_instructions = '''
 
@@ -146,17 +144,18 @@ Editing instructions
 
 '''
 
+
 def generate_config(modulename,
                     includes,
-                    target_file = None,
-                    include_dirs = [],
-                    match_patterns = [],
-                    exclude_patterns = [],
-                    libraries = [], library_dirs = [],
-                    reader_options = {},
-                    typemap_options = {},
-):
-    """Generate kernel configuration using C function prototypes from header files.
+                    target_file=None,
+                    include_dirs=[],
+                    match_patterns=[],
+                    exclude_patterns=[],
+                    libraries=[], library_dirs=[],
+                    reader_options={},
+                    typemap_options={}):
+    """Generate kernel configuration using C function prototypes from
+    header files.
 
     The kernel configuration file is generated once. The file needs to
     be manually edited to add hints like the dimensions of array
@@ -191,7 +190,7 @@ def generate_config(modulename,
     match_patterns, exclude_patterns : list
       Specify match/exclude patterns for C function names. The
       patterns must be valid re strings.
-  
+
     strip_left, strip_right : list
       Specify ctype stripping rules for NormalizedTypeMap
 
@@ -206,7 +205,7 @@ def generate_config(modulename,
         own_target_file = False
     elif isinstance(target_file, str):
         if os.path.exists(target_file):
-            reader = PrototypeReader()    
+            reader = PrototypeReader()
             config = load_kernel_config(target_file)
             for section in config.sections():
                 if section.startswith('KERNEL'):
@@ -214,11 +213,14 @@ def generate_config(modulename,
                     for prototype in reader(f['prototypes']):
                         existing_names.append(prototype['name'])
             original_content = open(target_file).read()
-            #print ('generate_config: target file {!r} exists! SKIPPING'.format(target_file))
-            #return
-            print('generate_config: results will be appended to {}'.format(target_file))
+            # print ('generate_config: target file {!r} exists!'
+            #  ' SKIPPING'.format(target_file))
+            # return
+            print('generate_config: results will be appended to {}'
+                  .format(target_file))
         else:
-            print('generate_config: results will be saved to {}'.format(target_file))
+            print('generate_config: results will be saved to {}'
+                  .format(target_file))
         target_file = open(target_file, 'w')
         own_target_file = True
 
@@ -229,25 +231,30 @@ def generate_config(modulename,
         else:
             for include_dir in include_dirs:
                 if include_dir.startswith('$'):
-                    l = include_dir.split(os.sep)
-                    include_dir = os.path.join(*([os.environ.get(l[0][1:], l[0])]+l[1:]))
+                    lst = include_dir.split(os.sep)
+                    include_dir = os.path.join(*([
+                        os.environ.get(lst[0][1:], lst[0])]+lst[1:]))
                 fn = os.path.join(include_dir, header_file)
                 if os.path.isfile(fn):
                     header_files.append(fn)
                     break
             else:
-                print ('generate_config:WARNING: could not find header file {} in {}. SKIPPING.'.format(header_file, ':'.join(['.']+include_dirs)))
-    
+                print('generate_config:WARNING: could not find header file {}'
+                      ' in {}. SKIPPING.'.format(header_file,
+                                                 ':'.join(['.']+include_dirs)))
+
     config = configparser.ConfigParser()
     reader = PrototypeReader(**reader_options)
     typemap = NormalizedTypeMap(**typemap_options)
-    
+
     groups = defaultdict(list)
 
     functions = []
     for filename in header_files:
-        source = open (filename).read()
-        for prototype in reader(source, match_patterns = match_patterns, exclude_patterns = exclude_patterns + existing_names):
+        source = open(filename).read()
+        for prototype in reader(
+                source, match_patterns=match_patterns,
+                exclude_patterns=exclude_patterns + existing_names):
             print('generate_config: included: {}'.format(prototype['name']))
             prototype.update_typemap(typemap)
             s = prototype.signature(typemap=typemap, kind='match')
@@ -265,44 +272,51 @@ def generate_config(modulename,
                 input_arguments.append(arg['name'])
             else:
                 inplace_arguments.append(arg['name'])
-                
+
         functions.append((name,
                           dict(
-                              SKIP = '# REMOVE THIS LINE WHEN READY',
-                              prototypes = '\n'+'\n'.join((str(p) for p in prototypes)),
-                              description = '',
-                              dimension = '',
-                              input_arguments = ', '.join(input_arguments),
-                              inplace_arguments = ', '.join(inplace_arguments),
-                              inout_arguments = '',
-                              output_arguments = '',
-                              hide_arguments = '',
-                              fortran_arguments = '', # by default all arguments are assumed to be C contiguous.
-                              #pre_loop_code = '',
-                              #pre_call_code = '',
-                              #post_call_code = '',
-                              #post_loop_code = '',
+                              SKIP='# REMOVE THIS LINE WHEN READY',
+                              prototypes='\n'+'\n'.join(
+                                  str(p) for p in prototypes),
+                              description='',
+                              dimension='',
+                              input_arguments=', '.join(input_arguments),
+                              inplace_arguments=', '.join(inplace_arguments),
+                              inout_arguments='',
+                              output_arguments='',
+                              hide_arguments='',
+                              # by default all arguments are assumed
+                              # to be C contiguous:
+                              fortran_arguments='',
+                              # pre_loop_code='',
+                              # pre_call_code='',
+                              # post_call_code='',
+                              # post_loop_code='',
                           )))
-            
-    default = dict(
-        typemaps = '\n'.join(['']+['{}: {}'.format(k, v) for k,v in sorted(typemap.items()) if k!=v]),
-        includes = '\n'+'\n'.join(includes),
-        include_dirs = '\n'+'\n'.join(include_dirs),
-        libraries = '\n'+'\n'.join(libraries),
-        library_dirs = '\n'+'\n'.join(library_dirs),
-        header_code = '',
-        kinds = 'Xnd', # TODO: move to command line options
-        ellipses = '..., var...',
-    )
 
+    default = dict(
+        typemaps='\n'.join(['']+['{}: {}'.format(k, v)
+                                 for k, v in sorted(typemap.items())
+                                 if k != v]),
+        includes='\n'+'\n'.join(includes),
+        include_dirs='\n'+'\n'.join(include_dirs),
+        libraries='\n'+'\n'.join(libraries),
+        library_dirs='\n'+'\n'.join(library_dirs),
+        header_code='',
+        kinds='Xnd',  # TODO: move to command line options
+        ellipses='..., var...',
+    )
 
     if original_content:
         target_file.write(original_content+'\n')
     else:
-        target_file.write('# This file is generated from {} and requires editing.'.format(__file__))
-        target_file.write(config_editing_instructions.replace('\n', '\n#  ')+'\n')
+        target_file.write(
+            '# This file is generated from {} and requires editing.'
+            .format(__file__))
+        target_file.write(
+            config_editing_instructions.replace('\n', '\n#  ')+'\n')
         config['MODULE '+modulename] = default
-    
+
     for name, func_config in functions:
         config['KERNEL '+name] = func_config
 
@@ -311,8 +325,8 @@ def generate_config(modulename,
     if own_target_file:
         target_file.close()
 
-    return dict(config_file = target_file)
+    return dict(config_file=target_file)
 
-        
+
 if __name__ == '__main__':
     main()

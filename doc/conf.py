@@ -1,4 +1,4 @@
-import sys, os, docutils
+import docutils
 
 
 extensions = ['sphinx.ext.intersphinx', 'sphinx.ext.doctest']
@@ -20,7 +20,4 @@ add_function_parentheses = False
 def setup(app):
     app.add_crossref_type('topic', 'topic', 'single: %s',
                           docutils.nodes.strong)
-    #app.add_javascript("copybutton.js")
-
-
-
+    # app.add_javascript("copybutton.js")

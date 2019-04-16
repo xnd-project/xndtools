@@ -6,16 +6,18 @@
 import os
 from .generate_kernel import get_module_data
 
+
 def generate_module(config_file,
-                    target_file = None,
-                    target_language = 'python',
-                    source_dir = '',
-                    package = None,
-                    sources = []):
+                    target_file=None,
+                    target_language='python',
+                    source_dir='',
+                    package=None,
+                    sources=[]):
     module_data = get_module_data(config_file)
     module_data['language'] = target_language
     if target_file is None:
-        target_file = os.path.join(source_dir, '{module_name}-{language}.c'.format(**module_data))
+        target_file = os.path.join(source_dir, '{module_name}-{language}.c'
+                                   .format(**module_data))
     if target_language == 'python':
         module_source = pymodule_template.format(**module_data)
     else:
@@ -28,17 +30,17 @@ def generate_module(config_file,
     extname = module_data['module_name']
     if package is not None:
         extname = package + '.' + extname
-    
-    return dict(config_file = config_file,
-                sources = [target_file] + sources,
-                include_dirs = module_data['include_dirs'],
-                library_dirs = module_data['library_dirs'],
-                libraries = module_data['libraries'],
-                extname = extname,
-                language = target_language,
-                has_xnd = module_data['has_xnd']
-    )
-    
+
+    return dict(config_file=config_file,
+                sources=[target_file] + sources,
+                include_dirs=module_data['include_dirs'],
+                library_dirs=module_data['library_dirs'],
+                libraries=module_data['libraries'],
+                extname=extname,
+                language=target_language,
+                has_xnd=module_data['has_xnd'])
+
+
 pymodule_template = '''
 #include <Python.h>
 #include "ndtypes.h"
@@ -60,7 +62,7 @@ static gm_tbl_t *gmk_{module_name}_table = NULL;
 
 static struct PyModuleDef {module_name}_module = {{
     PyModuleDef_HEAD_INIT,        /* m_base */
-    "{module_name}",                 /* m_name */
+    "{module_name}",              /* m_name */
     NULL,                         /* m_doc */
     -1,                           /* m_size */
     NULL,                         /* m_methods */
@@ -115,5 +117,3 @@ error:
     return NULL;
 }}
 '''
-
-

@@ -1,1 +1,1 @@
-import xndtools
+import xndtools  # noqa: F401

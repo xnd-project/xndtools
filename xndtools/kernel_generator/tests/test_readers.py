@@ -1,4 +1,3 @@
-
 from xndtools.kernel_generator.readers import PrototypeReader
 
 
@@ -11,9 +10,9 @@ def test_PrototypeReader():
     int foo (int a  , float *a  , long, double*);
     int foo (int a, float * a, long, double *, long   long a  [ ] );
     int foo (int a,
-             float * a, long, 
-             double *, long   long a  [ 
-] 
+             float * a, long,
+             double *, long   long a  [
+]
             );
 
     void bar0();
@@ -26,25 +25,25 @@ def test_PrototypeReader():
     reader = PrototypeReader()
 
     counter = 0
-    for p in reader (source):
+    for p in reader(source):
         if p['name'] == 'foo':
             counter += 1
             for i, a in enumerate(p['arguments']):
-                if i==0:
+                if i == 0:
                     assert a['name'] == 'a'
                     assert a['type'] == 'int'
-                if i==1:
+                if i == 1:
                     assert a['name'] == 'a'
                     assert a['type'] == 'float'
                     assert a['left_modifier'] == '*'
-                if i==2:
+                if i == 2:
                     assert a['name'] == 'arg2'
                     assert a['type'] == 'long'
-                if i==3:
+                if i == 3:
                     assert a['name'] == 'arg3'
                     assert a['type'] == 'double'
                     assert a['left_modifier'] == '*'
-                if i==4:
+                if i == 4:
                     assert a['name'] == 'a'
                     assert a['type'] == 'long long'
                     assert a['right_modifier'] == '[]'
@@ -61,5 +60,5 @@ def test_PrototypeReader():
             assert p['type'] == 'double'
             assert p['specifiers'] == 'static'
             assert p['left_modifier'] == '**'
-            
-    assert counter == source.count (';'), repr (counter)
+
+    assert counter == source.count(';'), repr(counter)

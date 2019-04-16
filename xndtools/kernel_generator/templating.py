@@ -1,7 +1,9 @@
-""" Provides templating tools.
+"""Provides templating tools.
 
 Template - base class for templates.
-Predicate - predicate function that implements boolean operations (not, or, and) using arithmetic operations (-, +, *).
+
+Predicate - predicate function that implements boolean operations
+  (not, or, and) using arithmetic operations (-, +, *).
 
 Basic usage
 -----------
@@ -15,12 +17,13 @@ Basic usage
                     )(<data>)
 
 See test() function for an example.
+
 """
 # Author: Pearu Peterson
 # Created: May 2018
 
-from pprint import pprint
 from collections import defaultdict
+
 
 def flatten(lst_of_lst):
     """ Flatten list of list objects.
@@ -33,11 +36,13 @@ def flatten(lst_of_lst):
             lst.append(l)
     return lst
 
+
 class verbosedefaultdict(defaultdict):
     """ When activated, report missing keys as not implemented features.
     """
-    
+
     verbose = False
+
     def activate(self, name):
         self.name = name
         self.verbose = True
@@ -47,17 +52,19 @@ class verbosedefaultdict(defaultdict):
             if '|' in key:
                 for k_ in key.split('|'):
                     k_ = k_.strip()
-                    if k_[0]+k_[-1] in ['""',"''"]:
+                    if k_[0]+k_[-1] in ['""', "''"]:
                         return k_[1:-1]
                     v = self[k_]
                     if v:
                         return v
             if key.endswith('-start-list') or key.endswith('-end-list'):
                 return ''
-            print('templating.verbosedefaultdict:{}: not implemented key: {}'.format(self.name, key))
+            print('templating.verbosedefaultdict:{}: not implemented key: {}'
+                  .format(self.name, key))
             print('  existing keys: {}'.format(','.join(sorted(self))))
             return '/* {!r} not implemented */'.format(key)
         return defaultdict.__missing__(self, key)
+
 
 def apply_format_map(obj, data, inplace=False):
     """ Apply data to Python objects containing strings.
@@ -79,8 +86,9 @@ def apply_format_map(obj, data, inplace=False):
     if isinstance(obj, str):
         try:
             return obj.format_map(data)
-        except Exception as msg:
-            print('apply_format_map:\n{}\n{}\n-----------------'.format(obj, data.keys()))
+        except Exception:
+            print('apply_format_map:\n{}\n{}\n-----------------'
+                  .format(obj, data.keys()))
             raise
     if isinstance(obj, list):
         lst = []
@@ -96,11 +104,11 @@ def apply_format_map(obj, data, inplace=False):
         elif len(obj) == 3:
             predicate, ifobj, elseobj = obj
         else:
-            raise NotImplementedError(repr((type(obj),len(obj))))
+            raise NotImplementedError(repr((type(obj), len(obj))))
         if predicate(data):
             return apply_format_map(ifobj, data)
         return apply_format_map(elseobj, data)
-    
+
     if isinstance(obj, dict):
         dct = {}
         for k, o in obj.items():
@@ -115,11 +123,12 @@ def apply_format_map(obj, data, inplace=False):
         start = apply_format_map(obj.start, data)
         end = apply_format_map(obj.end, data)
         return type(obj)(start, end)
-        
+
     raise NotImplementedError(repr(type(obj)))
 
+
 def apply_join(obj, data):
-    """ Apply data to Python object containing str.join functions.
+    """Apply data to Python object containing str.join functions.
 
     Parameters
     ----------
@@ -138,7 +147,7 @@ def apply_join(obj, data):
     if isinstance(obj, str):
         return lambda lst: obj.join(flatten(lst))
     if callable(obj):
-        return obj # callable is expected to apply flatten
+        return obj  # callable is expected to apply flatten
     if isinstance(obj, tuple):
         if len(obj) == 2:
             predicate, ifobj = obj
@@ -146,7 +155,7 @@ def apply_join(obj, data):
         elif len(obj) == 3:
             predicate, ifobj, elseobj = obj
         else:
-            raise NotImplementedError(repr((type(obj),len(obj))))
+            raise NotImplementedError(repr((type(obj), len(obj))))
         if predicate(data):
             return apply_join(ifobj, data)
         return apply_join(elseobj, data)
@@ -158,9 +167,10 @@ def apply_join(obj, data):
         return
     raise NotImplementedError(repr(type(obj)))
 
+
 class Block(object):
 
-    def __init__(self, start, end = ''):
+    def __init__(self, start, end=''):
         if not end and isinstance(start, str) and '...' in start:
             start, end = start.split('...', 1)
         self.start = start
@@ -168,6 +178,7 @@ class Block(object):
 
     def when(self, predicate):
         return (predicate, self)
+
 
 class When(object):
 
@@ -178,7 +189,7 @@ class When(object):
         if isinstance(other, Predicate):
             return When(self.predicate * other)
         return NotImplemented
-        
+
     def __rmul__(self, other):
         if isinstance(other, str):
             if '...' in other:
@@ -191,16 +202,17 @@ class When(object):
         if isinstance(other, list):
             return (self.predicate, other)
         return NotImplemented
-        
+
+
 class Template(object):
     """ Template class.
     """
     def __init__(self, template,
-                 variables = {},
-                 initialize = None,
-                 join = {},
-                 sort = {},
-                 name = None):
+                 variables={},
+                 initialize=None,
+                 join={},
+                 sort={},
+                 name=None):
         """Parameters
         ----------
         template : {str, dict, list, tuple}
@@ -223,7 +235,7 @@ class Template(object):
           Specify an initialize function with a signature
           initialize(data). The function is used to update data
           with computed values.
-        
+
         join : dict
           Specify join mapping of `...-list` values.
 
@@ -247,11 +259,11 @@ class Template(object):
         self.subtemplates[key] = value
         if isinstance(value, type(self)) and value.name is None:
             value.name = key
-        
+
     def __getitem__(self, key):
         return self.subtemplates[key]
-        
-    def __call__(self, data, parent_data = {}):
+
+    def __call__(self, data, parent_data={}):
         """Apply data to template target and return result.
 
         Parameters
@@ -278,7 +290,8 @@ class Template(object):
         empty) list values are created as follows:
 
         If sub-result is a string, it will be added to `key`+'-list'.
-        If sub-result is a list, each element (that is not None) is added to `key`-list.
+        If sub-result is a list, each element (that is not None) is added
+        to `key`-list.
         If sub-result is a mapping, each item is added to `sub-key`+'-list'.
         If sub-result is None, it will be ignored.
 
@@ -298,10 +311,14 @@ class Template(object):
             if isinstance(v, list) and v:
                 subtemplate = self.subtemplates.get(k)
                 if subtemplate is None:
-                    #print('{}(name={}).__call__:warning: no sub-template {!r} (available: {})'.format(type(self).__name__, self.name, k, ', '.join(self.subtemplates)))
+                    # print('{}(name={}).__call__:warning: no sub-template'
+                    # ' {!r} (available: {})'.format(type(self).__name__,
+                    # self.name, k, ', '.join(self.subtemplates)))
                     pass
                 elif not callable(subtemplate):
-                    print('{}(name={}).__call__:warning: sub-template {!r} not callable'.format(type(self).__name__, self.name, k))
+                    print('{}(name={}).__call__:warning: sub-template {!r} not'
+                          ' callable'.format(type(self).__name__,
+                                             self.name, k))
                 else:
                     for v_ in v:
                         v__ = parent_data.copy()
@@ -321,15 +338,16 @@ class Template(object):
                                 if isinstance(r_, str):
                                     tmp_data[subkey].append(r_)
                                 elif isinstance(r_, list):
-                                    #print(r_)
+                                    # print(r_)
                                     tmp_data[subkey].extend(r_)
-                                #elif isinstance(r_, Block):
+                                # elif isinstance(r_, Block):
                                 #    tmp_data[subkey].append(r_.start)
                                 else:
-                                    raise NotImplementedError(repr((self.name, k,k_,type(r_))))
+                                    raise NotImplementedError(
+                                        repr((self.name, k, k_, type(r_))))
                         else:
-                            raise NotImplementedError(repr((self.name, k,type(r))))
-
+                            raise NotImplementedError(
+                                repr((self.name, k, type(r))))
 
         for k in list(tmp_data):
             v = tmp_data[k]
@@ -338,12 +356,10 @@ class Template(object):
                 v = sorter(v)
             tmp_data[k] = v
 
-        #pprint(tmp_data)
-            
         for k in list(tmp_data):
             v = tmp_data[k]
             if k.endswith('-list'):
-                assert isinstance(v, list),repr(type(v))
+                assert isinstance(v, list), repr(type(v))
                 d = defaultdict(list)
                 for v_ in v:
                     if isinstance(v_, Block):
@@ -353,10 +369,10 @@ class Template(object):
                     else:
                         d[k].append(v_)
                 else:
-                    d[k]
+                    d[k]  # ????
                 for k_, v_ in d.items():
                     tmp_data[k_] = self._get_join(k_, data)(v_)
-                #tmp_data[k] = self._get_join(k, data)(tmp_data[k])
+                # tmp_data[k] = self._get_join(k, data)(tmp_data[k])
 
         for k, v in parent_data.items():
             if k not in tmp_data:
@@ -365,39 +381,43 @@ class Template(object):
         tmp_data.activate(self.name)
 
         variables = apply_format_map(self.variables, tmp_data, inplace=True)
-        
+
         for k, v in variables.items():
             if k in tmp_data:
                 v1 = tmp_data[k]
                 if v1 != v:
-                    print('{}(name={}).__call__:warning: data overrides variable {!r} value {!r} with {!r}'\
+                    print('{}(name={}).__call__:warning: data overrides'
+                          ' variable {!r} value {!r} with {!r}'
                           .format(type(self).__name__, self.name, k, v, v1))
             else:
                 tmp_data[k] = v
-        
+
         return apply_format_map(self.template, tmp_data)
 
     def _get_join(self, k, data):
         j = apply_join(self.join.get(k), data)
         if j is None:
-            print('{}(name={}).get_join: not implemented {!r}, using default join.'.format(type(self).__name__, self.name, k))
-            return lambda lst: ''.join(flatten(lst)) # default is simple join
+            print('{}(name={}).get_join: not implemented {!r}, using default'
+                  ' join.'.format(type(self).__name__, self.name, k))
+            # default is simple join:
+            return (lambda lst: ''.join(flatten(lst)))
         return j
+
 
 class Predicate(object):
     """A predicate function with logical operations (implemented using
     arithmetics operators).
     """
-    
-    def __init__(self, func = True):
+
+    def __init__(self, func=True):
         if isinstance(func, bool):
             func_value = func
-            func = lambda data: func_value
+            func = (lambda data: func_value)
         self.func = func
 
     def __call__(self, data):
         return self.func(data)
-        
+
     def __neg__(self):
         return type(self)(lambda data: not self(data))
 
@@ -405,12 +425,14 @@ class Predicate(object):
         if callable(other):
             return type(self)(lambda data: self(data) or other(data))
         return NotImplemented
+
     __radd__ = __add__
 
     def __mul__(self, other):
         if callable(other):
             return type(self)(lambda data: self(data) and other(data))
         return NotImplemented
+
     def __rmul__(self, other):
         if callable(other):
             return self * other
@@ -418,38 +440,36 @@ class Predicate(object):
             return other * When(self)
         return NotImplemented
 
-    
-def has(key): # example usage of Predicate
+
+def has(key):  # example usage of Predicate
     return Predicate(lambda data: key in data)
+
 
 def test():
     data = dict(
-        project_name = 'example',
-        kernels = [
-            dict(kernel_name = 'foo',
-                 kernel_type = 'void',
-                 arguments = [
-                     dict(name = 'n',
-                          type = 'int*',
-                          input = True,
-                          value = 'len(x)',
-                          depends = 'x',
-                     ),
-                     dict(name = 'x',
-                          type = 'double*',
-                          value = 'NULL',
-                          shapes = ('n',),
-                          output = True,
-                     ),
-                 ]
-            )
+        project_name='example',
+        kernels=[
+            dict(kernel_name='foo',
+                 kernel_type='void',
+                 arguments=[
+                     dict(name='n',
+                          type='int*',
+                          input=True,
+                          value='len(x)',
+                          depends='x'),
+                     dict(name='x',
+                          type='double*',
+                          value='NULL',
+                          shapes=('n',),
+                          output=True)])
         ]
     )
 
     is_input = Predicate(lambda adata: adata.get('input'))
-    is_output = lambda adata: adata.get('output')
-    is_scalar_ptr = lambda adata: adata.get('shapes') is None and adata.get('type', 'void').endswith('*')
-    
+    is_output = (lambda adata: adata.get('output'))
+    is_scalar_ptr = (lambda adata: (adata.get('shapes') is None and
+                                    adata.get('type', 'void').endswith('*')))
+
     c_source_template = '''
 /* Project name : {project_name} */
 {kernels-list}
@@ -467,15 +487,15 @@ def test():
   {block-end-list}
 }}
 '''
-    
+
     template = Template(dict(
-        c_source = c_source_template,
+        c_source=c_source_template,
     ))
 
     def join_initialize(lst):
         stmts = {}
         d = {}
-        for i in range(0,len(lst),3):
+        for i in range(0, len(lst), 3):
             stmt, name, deps = lst[i:i+3]
             stmts[name] = stmt
             if deps:
@@ -487,7 +507,8 @@ def test():
         n_ = None
         while len(lst) < len(d):
             if len(lst) == n_:
-                print('join_initialize:WARNING:circular dependence detected!: {!r}'.format(d))
+                print('join_initialize:WARNING:circular dependence detected!:'
+                      ' {!r}'.format(d))
                 break
             n_ = len(lst)
             for n, deps in d.items():
@@ -497,33 +518,30 @@ def test():
                     lst.append(n)
                     continue
         return '\n  '.join([stmts[n] for n in lst])
-    
+
     template['kernels'] = Template(
         dict(
-            kernels = kernel_template
+            kernels=kernel_template
         ),
-        join = {'arguments-list': ', ',
-                'inputs-list': ', ',
-                'outputs-list': ', ',
-                'visibles-list': ', ',
-                'initialize-list': join_initialize,
-                'block-start-list': '\n  ',
-                'block-end-list': '\n  ',
-        }
-        
+        join={'arguments-list': ', ',
+              'inputs-list': ', ',
+              'outputs-list': ', ',
+              'visibles-list': ', ',
+              'initialize-list': join_initialize,
+              'block-start-list': '\n  ',
+              'block-end-list': '\n  '}
     )
 
     template['kernels']['arguments'] = Template(
-        dict(arguments = (is_scalar_ptr, '&{name}', '{name}'),
-             inputs = (is_input, '{name}'),
-             outputs = (is_output, '{name}'),
-             #visibles = (is_output+is_input, '{name}'),
-             visibles = [(is_input, '{name}'), (is_output, '{name}')],
-             initialize = (has('value'), ['{name} = {value};', '{name}', (has('depends'),'{depends}', '')]),
-             block = [Block('/* start {name} */', '/* end {name} */')]
-        ),
-    )
-    
+        dict(arguments=(is_scalar_ptr, '&{name}', '{name}'),
+             inputs=(is_input, '{name}'),
+             outputs=(is_output, '{name}'),
+             # visibles=(is_output+is_input, '{name}'),
+             visibles=[(is_input, '{name}'), (is_output, '{name}')],
+             initialize=(has('value'), ['{name} = {value};', '{name}',
+                                        (has('depends'), '{depends}', '')]),
+             block=[Block('/* start {name} */', '/* end {name} */')]))
+
     result = template(data)
 
     for k, v in result.items():
@@ -534,7 +552,5 @@ def test():
         print('='*20)
 
 
-        
-    
 if __name__ == '__main__':
     test()

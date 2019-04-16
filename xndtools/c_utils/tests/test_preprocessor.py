@@ -1,5 +1,6 @@
 from xndtools.c_utils import preprocessor
 
+
 def test_remove_comments():
     source = '''
 // Hello World
@@ -15,6 +16,7 @@ int a = 1;
 
 int b;
 '''
+
 
 def test_resolve_macros():
     source = '''
@@ -34,6 +36,7 @@ int b = 2;
 int a = 1;
 
 '''
+
 
 def test_preprocessor():
     preprocessor.preprocess('''

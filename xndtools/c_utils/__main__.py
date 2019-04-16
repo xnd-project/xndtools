@@ -17,5 +17,6 @@ def test():
     print('STRUCTS:')
     pprint(r)
 
+
 if __name__ == '__main__':
     test()

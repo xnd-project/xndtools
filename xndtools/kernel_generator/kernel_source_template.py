@@ -4,31 +4,41 @@
 # Created: May 2018
 
 from collections import defaultdict
-from copy import deepcopy
 from .templating import Template, Predicate, flatten
 from . import utils
 #
 # Predicate functions
 #
 
+
 def has(key):
     return Predicate(lambda data: key in data)
+
+
 def has_intent(intent):
     return Predicate(lambda data: intent in data.get('intent', ()))
+
+
 def type_is(typ):
     return Predicate(lambda data: data.get('type') == typ)
+
+
 def kind_is(kind):
     return Predicate(lambda data: data.get('kind') == kind)
+
+
 def arraytype_is(arraytype):
     return Predicate(lambda data: data.get('arraytype') == arraytype)
+
+
 is_symbolic = arraytype_is('symbolic')
 is_variable = arraytype_is('variable')
 debug = Predicate(lambda data: data.get('debug', False))
 is_scalar = Predicate(lambda data: not (data.get('left_modifier') or data.get('right_modifier')))
-is_scalar_ptr = Predicate(lambda data: data.get('left_modifier')=='*' and not data.get('right_modifier') and data.get('shape') is None)
-is_array = Predicate(lambda data: (data.get('left_modifier')=='*' or data.get('right_modifier')=='[]') and data.get('shape') is not None)
+is_scalar_ptr = Predicate(lambda data: data.get('left_modifier') == '*' and not data.get('right_modifier') and data.get('shape') is None)
+is_array = Predicate(lambda data: (data.get('left_modifier') == '*' or data.get('right_modifier') == '[]') and data.get('shape') is not None)
 is_argument = Predicate(lambda data: not data['name'].endswith('_return_value_'))
-need_constraint = Predicate(lambda data: data.get('nout_symbols',0) > 0)
+need_constraint = Predicate(lambda data: data.get('nout_symbols', 0) > 0)
 disable = Predicate(lambda data: False)
 
 # See utils.py Prototype.set_argument_intent for interpretation:
@@ -52,11 +62,13 @@ is_vector = Predicate(utils.is_vector)
 # join functions
 #
 
+
 def join_kernels_list(lst):
     """
     Eliminates dublicated functions
     """
     return ''.join(sorted(set(lst)))
+
 
 def join_constraints_list(lst):
     """
@@ -64,12 +76,13 @@ def join_constraints_list(lst):
     """
     return ''.join(sorted(set(lst)))
 
+
 def sorted_list(lst):
     """
     Sorts list of statements taking into account dependencies.
 
     Input must be a list of 3-lists::
- 
+
       [<statements>, <name>, <dependencies>]
 
     where ``<dependencies>`` is an comma separated list of names.
@@ -77,7 +90,7 @@ def sorted_list(lst):
     stmts = {}
     d = {}
     all_deps = set()
-    for i in range(0,len(lst),3):
+    for i in range(0, len(lst), 3):
         stmt, name, deps = lst[i:i+3]
         stmts[name] = stmt
         if deps:
@@ -105,34 +118,43 @@ def sorted_list(lst):
     res = flatten([stmts[n] for n in lst if n in stmts])
     return res
 
+
 def join_signatures_list(lst):
     # Collects kind_values of kernels
     # Appends NULL value.
 
     sig_kindmap = defaultdict(list)
-    
+
     for signature in lst:
         name, sig, nout, kind_value = signature.split('|')
-        sig_kindmap[name,sig,int(nout)].append(kind_value)
+        sig_kindmap[name, sig, int(nout)].append(kind_value)
 
     lst = []
     for (name, sig, nout), kind_values in sig_kindmap.items():
-        if nout>0:
-            lst.append('{{ .name = "{}", .sig = "{}", .constraint = &gmk_{}_constraint, {} }}'.format(name, sig, name, ', '.join(kind_values)))
+        if nout > 0:
+            lst.append(
+                '{{ .name = "{}", .sig = "{}", .constraint'
+                ' = &gmk_{}_constraint, {} }}'.format(name, sig, name,
+                                                      ', '.join(kind_values)))
         else:
-            lst.append('{{ .name = "{}", .sig = "{}", {} }}'.format(name, sig, ', '.join(kind_values)))
-        kinds = [s.split('=')[0].strip()[1:] for s in kind_values]            
-        print('  {}(sig="{}", {}) [nout={}]'.format(name, sig, ', '.join(kinds), nout))
-        
+            lst.append('{{ .name = "{}", .sig = "{}", {} }}'
+                       .format(name, sig, ', '.join(kind_values)))
+        kinds = [s.split('=')[0].strip()[1:] for s in kind_values]
+        print('  {}(sig="{}", {}) [nout={}]'.format(name, sig,
+                                                    ', '.join(kinds), nout))
+
     lst = lst + ['{ .name = NULL, .sig = NULL }']
     return ',\n  '.join(lst)
+
 
 def join_dimension_list(lst):
     # Prepends ellipses dimension
     return ' * '.join(lst)
 
+
 def join_shape_product(lst):
     return '(' + ') * ('.join(lst) + ')'
+
 
 def join_short_doc_list(lst):
     kernels = defaultdict(list)
@@ -143,31 +165,36 @@ def join_short_doc_list(lst):
         sig = sig.strip()
         if sig not in kernels[name]:
             kernels[name].append(sig)
-        kinds[name,sig].append(kind.strip())
+        kinds[name, sig].append(kind.strip())
     lines = []
     for name, signatures in kernels.items():
         sig_lines = []
-        fmt = '{{:{}s}} [{{}}]'.format(max(70,max(map(len, signatures))))
+        fmt = '{{:{}s}} [{{}}]'.format(max(70, max(map(len, signatures))))
         for sig in signatures:
             sig_lines.append(fmt.format(sig, ', '.join(kinds[name, sig])))
-        lines.append('    {}:\n      {}'.format(name, '\n      '.join(sig_lines+[''])))
+        lines.append('    {}:\n      {}'
+                     .format(name, '\n      '.join(sig_lines+[''])))
     return '\n'.join(lines)
+
 
 def join_warnings_list(lst):
     lst = [line for line in lst if line]
     if lst:
-        print('{1}\nCollected warnings:\n    {0}\n{1}'.format('\n    '.join(lst), '-'*60))
+        print('{1}\nCollected warnings:\n    {0}\n{1}'
+              .format('\n    '.join(lst), '-'*60))
     return '\n'.join(lst)
+
 
 #
 # initialize functions
 #
 
+
 def initialize_source(data):
     """
     """
-    
-    
+
+
 def initialize_kernels(data):
     """
     1. Sets argument shape dimension key (fixed and symbolic dimensons)
@@ -175,10 +202,9 @@ def initialize_kernels(data):
     3. Extends arguments with function return value.
     4. Initialize various lists.
     5. Computes nin, nout, symbols for constraint function.
-    """    
+    """
     dimension_symbols = 'NMLKPQRSVWXYZBCDFGHJAEIOU'
     dims_map = {}
-    new_arguments = []
     input_index = 0
     output_index = 0
     output_args = []
@@ -196,28 +222,32 @@ def initialize_kernels(data):
         shape = arg.get('shape')
         if shape is not None:
             for dim in shape:
-                if dim['value'].isdigit(): # fixed dimension
+                if dim['value'].isdigit():  # fixed dimension
                     dim['dimension'] = dim['value']
-                else: # symbolic dimension
+                else:  # symbolic dimension
                     dims = dims_map.get(dim['value'])
                     if dims is None:
                         dims = dims_map[dim['value']] = dimension_symbols[len(dims_map)]
                         if is_outany(arg):
-                            if dim['value'] in arg['depends']: # TODO: when dim['value'] is expression
-                                constraints.append('gmk_shapes[{}] = {};'.format(len(out_symbols), dim['value']))
+                            #  TODO: when dim['value'] is expression
+                            if dim['value'] in arg['depends']:
+                                constraints.append('gmk_shapes[{}] = {};'
+                                                   .format(len(out_symbols),
+                                                           dim['value']))
                             out_symbols.append(dims)
                         else:
                             in_symbols.append(dims)
                     dim['dimension'] = dims
-            arg['nofitems'] = '('+')*('.join([dim['value'] for dim in shape]) +')'
-    data['symbols'] = ', '.join('"'+s+'"' for s in in_symbols + out_symbols)
+            arg['nofitems'] = '(' + ')*('.join(
+                [dim['value'] for dim in shape]) + ')'
+    data['symbols'] = ', '.join('"' + s + '"' for s in in_symbols + out_symbols)
     data['nin_symbols'] = len(in_symbols)
     data['nout_symbols'] = len(out_symbols)
     data['constraints'] = '\n  '.join(constraints)
     if data['type'] != 'void':
         arg = dict(
-            name = '{function_name}_return_value_'.format_map(data),
-            intent = ('output',), # TODO: hide - ignore return value
+            name='{function_name}_return_value_'.format_map(data),
+            intent=('output',),  # TODO: hide - ignore return value
         )
         for k in ['left_modifier', 'right_modifier', 'type']:
             if k in data:
@@ -229,23 +259,27 @@ def initialize_kernels(data):
     for arg in output_args:
         arg['output_index'] += input_index
 
-    # To suppress warnings when no input or no output, must be empty lists:
+    # To suppress warnings when no input or no output, must be empty
+    # lists:
     data['arguments-list'] = []
-    #data['initialize-list'] = []
+    # data['initialize-list'] = []
     data['input_utype-list'] = []
     data['output_utype-list'] = []
     data['body-list'] = []
 
+
 def initialize_argument(data):
     if is_scalar(data):
-        data['cfmt'] = dict(int32='%d', int64='%ld', float32='%f', float64='%f')[data['type']]
+        data['cfmt'] = dict(int32='%d', int64='%ld',
+                            float32='%f', float64='%f')[data['type']]
     else:
         data['cfmt'] = '%p'
-    
+
+
 #
 # Template strings
 #
-                    
+
 c_source_template = '''\
 /*
   This file is auto-generated.
@@ -361,7 +395,7 @@ if (!{wrapper_name}_counter)
 '''
 
 constraints_template = '''
-static int 
+static int
 {constraint_name}(int64_t *gmk_shapes, const void *gmk_args, ndt_context_t *gmk_ctx) {{
   (void)gmk_shapes;
   (void)gmk_args;
@@ -372,7 +406,7 @@ static int
   {constraint_leaving}
   return 0;
 }}
-static const ndt_constraint_t 
+static const ndt_constraint_t
 gmk_{kernel_name}_constraint = {{ .f = {constraint_name}, .nin = {nin_symbols}, .nout = {nout_symbols}, .symbols={{ {symbols} }} }};
 '''
 
@@ -410,7 +444,7 @@ static int
   {leaving}
   return gmk_success;
 }}
- '''
+'''
 
 #
 # Templates
@@ -418,115 +452,114 @@ static int
 
 source_template = Template(
     dict(
-        c_source = c_source_template
+        c_source=c_source_template
     ),
-    initialize = initialize_source,
-    join = {
+    initialize=initialize_source,
+    join={
         'kernels-list': join_kernels_list,
         'constraints-list': join_constraints_list,
         'signatures-list': join_signatures_list,
         'typemap_tests-list': '',
         'report_wrapper_counter-list': '',
         'short_doc-list': join_short_doc_list,
-        'constraint_entering-list': '\n', # not used, to suppress warnigns
-        'constraint_leaving-list': '\n',  # not used, to suppress warnigns
+        'constraint_entering-list': '\n',  # not used, to suppress warnigns
+        'constraint_leaving-list': '\n',   # not used, to suppress warnigns
         'all_warnings-list': join_warnings_list,
     },
-    name = 'source-template',
+    name='source-template',
 )
 
 source_template['typemap_tests'] = Template(
     dict(
-        typemap_tests = typemap_tests_template,
+        typemap_tests=typemap_tests_template,
     ),
-    name = 'source-template/typemap_tests',
+    name='source-template/typemap_tests',
     )
 
 wrapper_name = 'gmk_{kernel_name}_{ellipses_name}_{arraytype}_{kind}_{function_name}'
 constraint_name = 'gmk_{kernel_name}_constraint_func'
 source_template['kernels'] = Template(
-    dict(kernels = [
+    dict(kernels=[
         (strided_kernel_template, kernel_template) * kind_is('Strided'),
     ],
-         constraints = [
+         constraints=[
              constraints_template * need_constraint,
              ],
-         signatures = '{kernel_name}|{sig}|{nout_symbols}|.{kind} = {wrapper_name}',
-         report_wrapper_counter = report_wrapper_counter_template,
-         short_doc = '{kernel_name} - "{oneline_description}" @:@ {sig} @:@ {kind}',
-         entering = 'DEBUGMSG("Entering {wrapper_name}\\n");' * debug,
-         leaving = 'DEBUGMSG("Leaving {wrapper_name}\\n");' * debug,
-         all_warnings = '{warnings-list}',
+         signatures='{kernel_name}|{sig}|{nout_symbols}|.{kind}={wrapper_name}',
+         report_wrapper_counter=report_wrapper_counter_template,
+         short_doc='{kernel_name} - "{oneline_description}" @:@ {sig} @:@ {kind}',
+         entering='DEBUGMSG("Entering {wrapper_name}\\n");' * debug,
+         leaving='DEBUGMSG("Leaving {wrapper_name}\\n");' * debug,
+         all_warnings='{warnings-list}',
     ),
-    variables = dict(
-        constraint_entering = ('DEBUGMSG("Entering {constraint_name}\\n");','') * debug,
-        constraint_leaving = ('DEBUGMSG("Leaving {constraint_name}\\n");','') * debug,
-        wrapper_name = wrapper_name,
-        constraint_name = constraint_name,
-        empty_input_utype = 'void',
-        empty_output_utype = 'void',
-        sig = '{input_utype-list|empty_input_utype} -> {output_utype-list| empty_output_utype}',
-        return_value = ('{function_name}_return_value_ = ', '') * -type_is('void'),
-        entering = ('DEBUGMSG("entering {}\\n");'.format(wrapper_name),'') * debug,
-        leaving = ('DEBUGMSG("leaving {}\\n");'.format(wrapper_name),'') * debug,
+    variables=dict(
+        constraint_entering=('DEBUGMSG("Entering {constraint_name}\\n");', '') * debug,
+        constraint_leaving=('DEBUGMSG("Leaving {constraint_name}\\n");', '') * debug,
+        wrapper_name=wrapper_name,
+        constraint_name=constraint_name,
+        empty_input_utype='void',
+        empty_output_utype='void',
+        sig='{input_utype-list|empty_input_utype} -> {output_utype-list| empty_output_utype}',
+        return_value=('{function_name}_return_value_ = ', '') * -type_is('void'),
+        entering=('DEBUGMSG("entering {}\\n");'.format(wrapper_name), '') * debug,
+        leaving=('DEBUGMSG("leaving {}\\n");'.format(wrapper_name), '') * debug,
     ),
-    initialize = initialize_kernels,
-    join = {'declarations-list': '\n  ',
-            'body-start-list': '\n  ',
-            'body-end-list': '\n  ',
-            'body-list': '\n  ',
-            'arguments-list': ', ',
-            'cleanup-list': '\n  ',
-            'input_utype-list': ', ',
-            'output_utype-list': ', ',
-            'constraint_declarations-list': ', ',
-            'warnings-list': '\n',
-    },
-    sort = {
+    initialize=initialize_kernels,
+    join={'declarations-list': '\n  ',
+          'body-start-list': '\n  ',
+          'body-end-list': '\n  ',
+          'body-list': '\n  ',
+          'arguments-list': ', ',
+          'cleanup-list': '\n  ',
+          'input_utype-list': ', ',
+          'output_utype-list': ', ',
+          'constraint_declarations-list': ', ',
+          'warnings-list': '\n'},
+    sort={
         'body-list': sorted_list,
-        #'input_utype-list': postprocess_input_utype_list,
+        # 'input_utype-list': postprocess_input_utype_list,
     },
-    name = 'source-template/kernels',
+    name='source-template/kernels',
 )
 
 source_template['kernels']['arguments'] = Template(
     dict(
-        declarations = [
-            (('{ctype} {name} = {ctype_zero};','{ctype} {name};')*has('ctype_zero') )* (is_scalar+is_scalar_ptr),
+        declarations=[
+            (('{ctype} {name} = {ctype_zero};',
+              '{ctype} {name};')*has('ctype_zero'))*(is_scalar+is_scalar_ptr),
             '{ctype}* {name} = NULL;'*is_array,
 
             [('xnd_t gmk_input_{name} = gmk_stack[{input_index}];',
               'const xnd_t gmk_input_{name} = gmk_stack[{input_index}];')*(has('value')*(is_inplace+is_inout+is_inplace_output+is_inout_output)),
-             'DEBUGMSG1("gmk_input_{name}.type=%s\\n", ndt_as_string(gmk_input_{name}.type, gmk_ctx));'*debug,
-            ] * (is_inany),
+             'DEBUGMSG1("gmk_input_{name}.type=%s\\n", ndt_as_string(gmk_input_{name}.type, gmk_ctx));'*debug] * (is_inany),
             'const xnd_t gmk_output_{name} = gmk_stack[{output_index}];' * (is_outany),
         ],
-        constraint_declarations = [
+        constraint_declarations=[
             # constraints can use scalar arguments to initialize shapes of output arrays
             '{ctype} {name} = *({ctype}*)(((xnd_t *)gmk_args)[{input_index}].ptr);' * is_inany*(is_scalar+is_scalar_ptr),
         ],
-        warnings = [
+        warnings=[
             'inplace|inout has not effect: C scalar cannot be changed in-situ (in {kernel_name})' * (is_inplace+is_inout+is_inplace_output+is_inout_output)*is_scalar,
         ],
         #
         # body generates body-start-list and body-end-list, so all items must contain `...` !!!
         #
-        body = [[
+        body=[[
             # ==================================================
             #                   Scalar arguments
             # ==================================================
             [
                 [
                     '{name} = {value};...'*(is_hide+is_output),
-                    #'{name} = (xnd_is_na(&gmk_input_{name}) ? {value} : *GMK_SCALAR_DATA({ctype}, gmk_input_{name}));...'*(is_inany),
-'''
+                    # '{name} = (xnd_is_na(&gmk_input_{name}) ? {value} : *GMK_SCALAR_DATA({ctype}, gmk_input_{name}));...'*(is_inany),
+                    '''
 if (xnd_is_na(&gmk_input_{name}))
   {name} = {value};
 else
   {name} = *GMK_SCALAR_DATA({ctype}, gmk_input_{name});
 ...
 ''' * (is_input+is_input_output),
-'''
+                    '''
 if (xnd_is_na(&gmk_input_{name}))
 {{
   xnd_set_valid(&gmk_input_{name});
@@ -548,7 +581,7 @@ else
             # ==================================================
             #                   Array arguments
             # ==================================================
-            [                
+            [
                 [
                     [
                         '''\
@@ -563,7 +596,7 @@ if ({name} != NULL) {{
     free({name});
 }} else gmk_success = -1; /* if ({name} != NULL) */
 '''*(is_input),
-                          '''\
+                        '''\
 bool gmk_{name}_new = !ndt_{is_contiguous}(gmk_input_{name}.type);
 if (gmk_{name}_new)
   {name} = ({ctype}*){xndtools_copy}(&gmk_input_{name}, gmk_ctx);
@@ -621,7 +654,7 @@ if ({name} != NULL) {{
 }} else gmk_success = -1; /* if ({name} != NULL) */
 '''*(is_input_output),
 
-                          '''\
+                        '''\
 bool gmk_{name}_new = !ndt_{is_contiguous}(gmk_input_{name}.type);
 if (gmk_{name}_new)
   {name} = ({ctype}*){xndtools_copy}(&gmk_input_{name}, gmk_ctx);
@@ -648,7 +681,7 @@ if (!gmk_{name}_new) {{
   gmk_success = -1;
 }}
 '''*(is_inout_output),
-                        
+
                     ] * kind_is('Xnd'),
 
                     [
@@ -680,54 +713,55 @@ xndtools_cpy((char*){name}, &gmk_input_{name}, ndt_{is_contiguous}(gmk_input_{na
 ''' * (is_inplace_output + is_inout_output),
 
                     ] * (kind_is('C') + kind_is('Fortran'))
-                ]   
-
+                ]
             ] * is_array * -has('value'),
         ],
-                '{name}',
-                ('{depends}','') * has('depends')
-        ], # 3-list is handled by sorted_list
-        arguments = ('&{name}', '{name}') * is_scalar_ptr * is_argument,
-        input_utype = ('{sigdims}?{type}' * is_inany,'{sigdims}{type}' * is_inany)*has('value'),
-        output_utype = '{sigdims}{type}' * is_outany,
+              '{name}',
+              ('{depends}', '') * has('depends')
+        ],  # 3-list is handled by sorted_list
+        arguments=('&{name}', '{name}') * is_scalar_ptr * is_argument,
+        input_utype=('{sigdims}?{type}' * is_inany,
+                     '{sigdims}{type}' * is_inany)*has('value'),
+        output_utype='{sigdims}{type}' * is_outany,
     ),
-    variables = dict(
-        #fortran = ('!', '') * is_fortran,
-        #fortran = '', # kernel signature cannot contain data layout information
-        is_contiguous = ('is_f_contiguous', 'is_c_contiguous') * is_fortran,
-        contiguous = ('F-contiguous', 'C-contiguous') * is_fortran,
-        xndtools_copy = ('xndtools_fcopy', 'xndtools_copy') * is_fortran,
-        xndtools_inv_copy = ('xndtools_inv_fcopy', 'xndtools_inv_copy') * is_fortran,
-        #xndtools_fcopy = ('xndtools_copy', 'xndtools_fcopy') * is_fortran,
-        sigdims = ('{ellipses}{dimension-list} * ', '{ellipses}')*has('dimension-list'),
-        wrapper_name = wrapper_name,
-        shape_product = '{shape-list}'*has('shape'),
+    variables=dict(
+        # fortran = ('!', '') * is_fortran,
+        # fortran='', # kernel signature cannot contain data layout information
+        is_contiguous=('is_f_contiguous', 'is_c_contiguous') * is_fortran,
+        contiguous=('F-contiguous', 'C-contiguous') * is_fortran,
+        xndtools_copy=('xndtools_fcopy', 'xndtools_copy') * is_fortran,
+        xndtools_inv_copy=('xndtools_inv_fcopy',
+                           'xndtools_inv_copy') * is_fortran,
+        # xndtools_fcopy=('xndtools_copy', 'xndtools_fcopy') * is_fortran,
+        sigdims=('{ellipses}{dimension-list} * ',
+                 '{ellipses}') * has('dimension-list'),
+        wrapper_name=wrapper_name,
+        shape_product='{shape-list}'*has('shape'),
     ),
-    initialize = initialize_argument,
-    join = {'dimension-list': join_dimension_list,
-            'shape-list': join_shape_product,
-    },
-    name = 'source-template/kernels/arguments',
+    initialize=initialize_argument,
+    join={'dimension-list': join_dimension_list,
+          'shape-list': join_shape_product},
+    name='source-template/kernels/arguments',
 )
 
 source_template['kernels']['arguments']['shape'] = Template(
     dict(
-        dimension = ('{dimension}', 'var') * is_symbolic,
-        shape = '{value}',
+        dimension=('{dimension}', 'var') * is_symbolic,
+        shape='{value}',
     ),
-    name = 'source-template/kernels/arguments/shape',
+    name='source-template/kernels/arguments/shape',
 )
 
 #
 #
 #
+
 
 def test():
 
     kernels = [
         {'argument_map': {'n': 0, 'r': 2, 'x': 1},
-         'kind' : ['Xnd'][0],
-         
+         'kind': ['Xnd'][0],
          'arguments': [{'depends': 'x',  # TODO
                         'intent': ('hide',),
                         'name': 'n',
@@ -752,22 +786,22 @@ def test():
          'function_name': 'd_example_sum',
          'type': 'void'},
         {
-            'kind' : ['Xnd'][0],
-            'arguments' : [],
-            'kernel_name' : 'foo',
-            'function_name' : 'd_foo',
-            'type' : 'double',
+            'kind': ['Xnd'][0],
+            'arguments':[],
+            'kernel_name':'foo',
+            'function_name':'d_foo',
+            'type':'double',
         }
     ]
-    
-    data = dict(module_name = 'example',
-                typemap_tests = [dict(orig_type='double', normal_type='float64'),
-                                 dict(orig_type='int', normal_type='int32'),
-                ],
-                kernels = kernels)
+
+    data = dict(module_name='example',
+                typemap_tests=[dict(orig_type='double', normal_type='float64'),
+                               dict(orig_type='int', normal_type='int32')],
+                kernels=kernels)
 
     source = source_template(data)
-    print (source['c_source'])
-    
+    print(source['c_source'])
+
+
 if __name__ == '__main__':
     test()
