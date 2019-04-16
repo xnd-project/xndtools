@@ -1,12 +1,10 @@
 language: python
 python:
-  - "3.6"
+  - "3.7"
 before_install:
   - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
   - sudo apt-get update -qq
 install:
-  - sudo apt-get install -qq gcc-6
-  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 90
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
       wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
     else
@@ -19,14 +17,11 @@ install:
   - conda update -q conda
   # Useful for debugging any issues with conda
   - conda info -a
-  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION pip pytest mkl mkl-include mkl-rt numpy
+  - conda env create --file=conda-envs/xndtools-devel.yaml -n test-environment -q
   - source activate test-environment
   - export PREFIX=$CONDA_PREFIX
-  - gcc --version
   - python --version
-  - pip --version
   - pytest --version
-  - bash update_xnd.sh
 
 before_script:
   - python setup.py develop
